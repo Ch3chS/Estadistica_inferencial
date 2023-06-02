@@ -1,0 +1,214 @@
+---
+title: "Ejercicios 3 - Estadistica Inferencial"
+author: "Fernando Pérez, Cristobal Marchant, Clemente Aguilar, Sergio Espinoza"
+date: "2023-03-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Actividad 3 Grupo 5
+Integrantes: Fernando Pérez Cortez, Cristobal Marchant, Clemente Aguilar, Sergio Espinoza
+
+```{r}
+# Importacion de Librerias
+
+library(ggpubr)
+library(ggplot2)
+```
+
+# Enunciado
+Se sabe que una máquina que envasa detergentes industriales llena bidones con un volumen de producto que sigue una distribución normal con desviación estándar de 1 litro. Usando una muestra aleatoria de 100 envases, el ingeniero a cargo de la planta requiere determinar si la máquina está llenando los bidones con una media de 10 litros.
+
+## Pregunta 1
+
+Si el ingeniero está seguro de que el verdadero volumen medio no puede ser inferior a 10 litros y piensa rechazar la hipótesis nula cuando la muestra presente una media mayor a 10,5 litros, ¿cuál es la probabilidad de que cometa un error de tipo I?
+
+```{r}
+# Declaracion de variables
+
+n <- 100
+sigma <- 1
+error_estandar <- sigma/sqrt(n)
+medianula <- 10
+
+# Eje horizontal para grafico
+x <- seq(9.6,10.7,0.01)
+```
+
+
+```{r}
+# Calculo distribucion normal
+y <- dnorm(x, mean=medianula, sd = error_estandar)
+datos = data.frame(x,y)
+
+# Grafico
+g <- ggplot(data = datos, aes(x))
+g <- g + stat_function(fun = dnorm,
+                       args = list(mean = medianula, sd = error_estandar),
+                       colour = "red")
+
+g <- g + ylab("")
+g <- g + scale_y_continuous(breaks = NULL)
+g <- g + scale_x_continuous(name = "Diferencia en volumen medio", breaks = seq(9.6,10.6,0.1))
+g <- g + theme_pubr()
+
+g
+```
+Tomaremos el valor indicado en la pregunta como q_critico (10.5 litros) y se marca la zona el en grafico
+```{r}
+# Valor indicado en el enunciado
+q_crit <- 10.5
+
+# Se pinta el area bajo la curva desde dicho valor 
+g <- g + geom_area ( data = subset (datos , x > q_crit ) ,
+                       aes ( y = y ) ,
+                       colour = "red",
+                       fill = "red",
+                       alpha = 0.5)
+g
+```
+La zona no se puede apreciar puesto que es muy pequeña para su visualización.
+Ahora, se realiza el calculo para obtener el valor de alfa, lo que corresponde a la probabilidad de que el ingeniero comenta un error tipo I
+
+```{r}
+alfa <- pnorm(q_crit, mean = medianula, sd=error_estandar, lower.tail = FALSE)
+alfa
+```
+El valor de alfa para esta pregunta es de 2.866516e-07
+
+## Pregunta 2
+
+Si el verdadero volumen medio de los bidones fuera de 10,3 litros, ¿cuál sería la probabilidad de que el ingeniero, que obviamente no conoce este dato, cometa un error de tipo II?
+
+A partir de esta pregunta tenemos una nueva media nula que corresponde a los 10.3 litros.
+
+```{r}
+nueva_media_nula = 10.3
+# Se mantienen algunos valores y utilizamos el valor de alfa obtenido en la pregunta anterior
+sigma <- 1
+alfa <- alfa # 2.866516e-07
+n <- 100
+se <- sigma/sqrt(n)
+```
+Con dicho valor se obtiene el area bajo la curva a partir de los 10.5 litros del enunciado, marcando la zona en el nuevo grafico
+
+```{r}
+# Distribucion normal
+y2 = dnorm(x, mean=nueva_media_nula, sd = se)
+datos2 = data.frame(x,y2)
+
+# Grafico
+g2 <- ggplot(data = datos2, aes(x))
+g2 <- g + stat_function(fun = dnorm,
+                       args = list(mean = nueva_media_nula, sd = se),
+                       colour = "green")
+
+g2 <- g2 + geom_area ( data = subset (datos2 , x > q_crit ) ,
+                         aes ( y = y2 ) ,
+                         colour = "green",
+                         fill = "green",
+                         alpha = 0.5)
+g2
+```
+Con ese valor, se calculara el valor de beta.
+
+```{r}
+beta = 1 - pnorm(q_crit, mean = nueva_media_nula, sd=se, lower.tail = FALSE)
+beta
+```
+
+## Pregunta 3
+
+Como no se conoce el verdadero volumen medio, genere un gráfico del poder estadístico con las condiciones anteriores, pero suponiendo que el verdadero volumen medio podría variar de 10 a 10,7 litros.
+
+```{r}
+library ( ggpubr )
+library ( tidyverse )
+
+mm1 <- 10.0
+mm2 <- 10.1
+mm3 <- 10.2
+mm4 <- 10.3
+mm5 <- 10.4
+mm6 <- 10.5
+mm7 <- 10.6
+mm8 <- 10.7
+
+SE <- sigma/sqrt(n)
+#n <- 100
+#sd <- 1
+sec <- seq(-0.1, 0.1, 0.001)
+
+a1 <- pnorm(mm1, mean = medianula, sd = SE, lower.tail = FALSE)
+ng1 <- power.t.test( n = n, delta =sec, sd = SE, sig.level = a1, type = "one.sample", alternative = "one.sided")$power
+
+a2 <- pnorm(mm2, mean = medianula, sd = SE, lower.tail = FALSE)
+ng2 <- power.t.test( n = n, delta =sec, sd = SE, sig.level = a2, type = "one.sample", alternative = "one.sided")$power
+
+a3 <- pnorm(mm3, mean = medianula, sd = SE, lower.tail = FALSE)
+ng3 <- power.t.test( n = n, delta =sec, sd = SE, sig.level = a3, type = "one.sample", alternative = "one.sided")$power
+
+a4 <- pnorm(mm4, mean = medianula, sd = SE, lower.tail = FALSE)
+ng4 <- power.t.test( n = n, delta =sec, sd = SE, sig.level = a4, type = "one.sample", alternative = "one.sided")$power
+
+a5 <- pnorm(mm5, mean = medianula, sd = SE, lower.tail = FALSE)
+ng5 <- power.t.test( n = n, delta =sec, sd = SE, sig.level = a5, type = "one.sample", alternative = "one.sided")$power
+
+a6 <- pnorm(mm6, mean = medianula, sd = SE, lower.tail = FALSE)
+ng6 <- power.t.test( n = n, delta =sec, sd = SE, sig.level = a6, type = "one.sample", alternative = "one.sided")$power
+
+a7 <- pnorm(mm7, mean = medianula, sd = SE, lower.tail = FALSE)
+ng7 <- power.t.test( n = n, delta =sec, sd = SE, sig.level = a7, type = "one.sample", alternative = "one.sided")$power
+
+a8 <- pnorm(mm8, mean = medianula, sd = SE, lower.tail = FALSE)
+ng8 <- power.t.test( n = n, delta =sec, sd = SE, sig.level = a8, type = "one.sample", alternative = "one.sided")$power
+
+dt <- data.frame(sec, ng1, ng2, ng3, ng4, ng5, ng6, ng7, ng8)
+dt <- dt %>% pivot_longer(!"sec", names_to = "fuente", values_to = "poder")
+
+gp3 <- ggplot(dt, aes(sec, poder, colour=factor(fuente)))
+gp3 <- gp3 + geom_line()
+gp3 <- gp3 + labs ( colour = "")
+gp3 <- gp3+ ylab (" Poder estadístico ")
+gp3 <- gp3+ xlab (" Tamaño del efecto ")
+gp3 <- gp3 + scale_color_manual ( values =c("red", "blue", "chartreuse4", "orange", "purple", "green", "magenta", "cyan") )
+gp3 <- gp3 + theme_pubr ()
+gp3 <- gp3 + ggtitle (" Curvas de poder para prueba t ")
+gp3 <- gp3 + geom_vline( xintercept = 0 , linetype = "dashed")
+gp3
+
+```
+
+## Pregunta 4
+
+Considerando un volumen medio de 10 litros, ¿Cuántos bidones deberían revisarse para conseguir un poder estadístico de 0,8 y un nivel de significación de 0,05?
+
+Para esta pregunta se utilizara la funcion power.t.test con las siguientes variables
+```{r}
+# Variables
+media_muestral <- 10
+delta = nueva_media_nula - media_muestral
+
+# Calculo
+power.t.test(n = NULL, delta = delta,
+             sd = se, sig.level = 0.05, power = 0.8, # sig.level y power definidos en la pregunta
+             type = "one.sample",
+             alternative = "one.sided")$n
+```
+Ingresando el parámetro del tamaño del número de observaciones como NULL, la función power.t.test entrega la cantidad de bidones requerida para tener un poder estadístico de 0.8, 2.55 bidones.
+## Pregunta 5
+
+¿Y si el ingeniero fuese muy exigente y quisiera reducir la probabilidad de cometer un error de tipo I a un 1% solamente?
+
+Para esta pregunta se usarán las variables del desarrollo de la pregunta anterior, con un cambio en el nivel de significancia
+```{r}
+power.t.test(n = NULL, delta = delta, # Revisar valor de delta que es lo que falta para esta
+             sd = se, sig.level = 0.01, power = 0.8,
+             type = "one.sample",
+             alternative = "one.sided")$n
+
+```
+Para este caso, se puede observar que el tamaño aumenta a casi 4 bidones, debido a que se pide un mayor nivel de certeza de no rechazar la hipótesis nula cuando esta es correcta.

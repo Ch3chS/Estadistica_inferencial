@@ -1,0 +1,101 @@
+---
+title: "EP06_Grupo3"
+output: html_document
+date: "2023-05-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("ggpubr")
+library("readr")
+library("dplyr")
+library("readxl")
+library ("tidyverse")
+library ("nlme")
+library ("emmeans")
+library ("ez")
+```
+
+# Pregunta:
+"En este momento, los investigadores buscan determinar si existen diferencias en el tiempo que tardan los usuarios en formular consultas para problemas 
+con diferente nivel de dificultad en el área de química."
+
+# Solución
+
+### Hipótesis y datos a usar
+Para lo anterior se hará uso del análisis de varianza (ANOVA) para muestras correlacionadas donde nuestras hipótesis serán: \
+
+HO:todas los tiempos que tardan los usuarios en formular consultas para problemas con diferente nivel de dificultad en el área de química son iguales.\
+HA:al menos 1 par de tiempos que tardan los usuarios en formular consultas para problemas con diferente nivel de dificultad en el área de química son distintos.\
+Para esta ocasión se usará un nivel de significancia de 0.01
+
+```{r carga_de_datos}
+datos06 <- read.csv2("EP05 Datos.csv", stringsAsFactors = TRUE, fileEncoding = "ISO-8859-1")
+alfa <- 0.01
+
+datosT <- datos06 %>% filter(area == 'Química')
+summary(datosT)
+```
+
+### Comprobación de requisitos para el uso de anova \
+1. Todas las pruebas se miden en tiempo de segundos por lo que las mediciones de cada tipo de datos son independientes entre sí  
+2. A continuación se analizará la normalidad de los diferentes niveles de díficultad en el aréa química realizando el shapiro test por separado:  
+
+
+```{r comprobacion_de_requisitos_anova}
+datosBAJOS <- datosT %>% filter(dificultad == 'Baja')
+normalidadNE<- shapiro.test(datosBAJOS$tiempo)
+normalidadNE
+
+datosMED <- datosT %>% filter(dificultad == 'Media')
+normalidadNEM <- shapiro.test(datosMED$tiempo)
+normalidadNEM
+
+datosALT <- datosT %>% filter(dificultad == 'Alta')
+normalidadNEA <- shapiro.test(datosALT$tiempo)
+normalidadNEA
+
+normalidad <- shapiro.test(datosT$tiempo)
+normalidad
+```
+Como se pudo notar en todos los casos el p-value resultante es bastante mayor que nuestro nivel de significancia (0.01), por lo que la hipótesis nula del shapiro test (Que la muestra sigue una distribución normal) es aceptada para todos los niveles, por lo que este requisito queda demostrado.
+
+
+Finalmente # para el caso de esfericidad, utilizaremos la funcion ezANOVA() para calcularla y, a demas, calcular anova al mismo tiempo:
+
+```{r esfericidad}
+anova <- ezANOVA(data = datosT, dv = tiempo, within = dificultad,
+                 wid = id, return_aov = TRUE)
+
+print(anova$`Mauchly's Test for Sphericity`)
+```
+Como el p-value es lo suficientemente alto se comprobaron todos los requisitos para notar que el uso de anova es correcto, así que imprimiendo el resultado del analisis tenemos:
+
+
+### Anova
+```{r anova}
+summary(anova$aov)
+
+```
+Como se pudo notar el p-value es lo suficientemente bajo como para rechazar la hipótesis nula en favor de la alternativa, es decir, podemos asegurar con un 99% de confianza que hay almenos una diferencia en el tiempo que tardan los usuarios en formular consultas para problemas entre los distintos niveles de dificultad en el área de química. \
+
+
+### Análisis post-hoc 
+Luego, como existe esta diferencia, se realizará un analisis post-hoc, en el cual se utilizará la prueba de tukey:
+
+```{r analisis_post-hoc}
+mixto <- lme(tiempo ~ dificultad, data = datosT, random = ~1|id)
+medias <- emmeans(mixto, "dificultad")
+tukey <- pairs(medias, adjust = "tukey")
+cat("\n\nPrueba HSD de Tukey\n\n")
+print (tukey)
+```
+
+Como da un p value menor a 0.01 se acepta la HA y se rechaza la HO en el caso de comparacion entre alta con baja y baja con media.\
+
+Para el ultimo caso de Alta con Media, las medias son suficientemente parecidas y el p-value suficientemente alto como para afirmar que son muy parecidas medias entre estos dos grupos
+
+
+## Conclusión final
+A través de las pruebas realizadas podemos concluir con un 99% de confianza que existen diferencias en el tiempo que tardan los usuarios en formular consultas para problemas 
+con diferente nivel de dificultad en el área de química; siendo más específicos, estas diferencias se encuentran entre los grupos de díficultad alta con baja y baja con media, sin embargo, no hay evidencia suficiente para afirmar que no exista una diferencia significativa entre la dificultad alta y media. 

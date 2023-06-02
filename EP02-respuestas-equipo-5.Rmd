@@ -1,0 +1,174 @@
+---
+title: "E02_Grupo5"
+output: html_document
+date: "2023-03-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Actividad 2 Grupo 5
+
+Integrantes: Clemente Aguilar, Fernándo Pérez, Sergio Espinoza y Cristóbal Marchant.
+
+
+```{r }
+# Importacion de librerias
+library(dplyr)
+library(ggpubr)
+```
+
+```{r}
+# Lectura de datos
+data <- read.csv2("EP02-datos.csv", stringsAsFactors = TRUE)
+```
+
+## Pregunta 1
+
+```{r}
+# Filtro de datos
+orientales <- data %>% filter(Raza == "Oriental")
+orientales_previos <- data.frame(orientales$Previo)
+media_Previo <- mean(orientales_previos$orientales.Previo)
+desviacion_orientales <- sd(orientales_previos$orientales.Previo)
+n <- length(orientales_previos$orientales.Previo)
+
+valor_nulo <- 19.8
+alfa <- 0.05
+
+orientales_previos
+```
+
+```{r}
+# Verificar si los datos provienen de una poblacion que siga una distribucion normal
+#QQ-graph
+g <- ggqqplot(data = orientales_previos,
+              x = "orientales.Previo",
+              color = "pink",
+              xlab = "Desviaciones",
+              ylab = "Tiempo previo para Orientales",
+              title = "Grafico QQ") + theme_minimal()
+
+g
+```
+
+No se observan valores atipicos en el grafico, por lo que se asume que los datos de la muestra proviene de una poblacion que sigue una distribución normal.
+
+Ho: El tiempo previo de los orientales es inferior a 19.8 [s]
+Ha: =/= 19.8
+
+```{r}
+prueba_t <- t.test(orientales_previos,
+                   alternative = "less",
+                   mu = valor_nulo,
+                   conf.level = 1 - alfa)
+
+print(prueba_t)
+```
+
+Como el p-value es mayor que el nivel de significancia escogido, aceptamos la hipótesis nula por sobre la alternativa, indicando que el mejor tiempo medio de los atletas orientales antes de ingresar al programa de entrenamiento es igual a 19,8 segundos con un 95% de confianza.
+
+## Pregunta 2
+```{r}
+raza_negra <- data %>% filter(Raza == "Negra")
+negros_previo <- data.frame(raza_negra$Previo)
+negros_posterior <- data.frame(raza_negra$Posterior)
+
+diferencia_t <- negros_posterior - negros_previo
+
+normalidad <-shapiro.test(diferencia_t$raza_negra.Posterior)
+print(normalidad)
+```
+Ho = La marca se reduce en 1.5 segundos    
+Ha = la diferencia entre ambos es mayor a 1.5 segundos
+```{r}
+valor_nulo2 <- 1.5
+
+prueba_2_muestras <- t.test(x = negros_previo$raza_negra.Previo,
+                            y = negros_posterior$raza_negra.Posterior,
+                            paired = TRUE,
+                            alternative = "greater",
+                            mu = valor_nulo2,
+                            conf.level = 1 - alfa)
+
+print(prueba_2_muestras)
+```
+Como el p-value es mayor que el nivel de significancia escogido, aceptamos la hipótesis nula por sobre la alternativa, indicando quese reduce en 1.5 segundos el tiempo de los atletas de raza Negra con un 95% de confianza.
+
+##Pregunta 3
+
+Ho = Atletas negros superan a orientales por 3 segundos    
+Ha = No superan por 3 segundos (puede ser > o <)
+```{r}
+valor_nulo3 <- 3
+
+orientales_posterior <- data.frame(orientales$Posterior)
+
+prueba_3 <- t.test(x = orientales_posterior$orientales.Posterior,
+                   y = negros_posterior$raza_negra.Posterior,
+                   paired = FALSE,
+                   alternative = "two.sided",
+                   mu = valor_nulo3,
+                   conf.level = 1 - alfa)
+
+print(prueba_3)
+```
+Como el p-value resultante es menor al nivel de significancia considerado, rechazamos la hipótesis nula en favor de la hipótesis alternativa.
+
+
+##Pregunta 4
+
+Ho = Hay mas atletas orientales que, en promedio, redujeron sus marcas en 4,9 segundos que atletas blancos que lo hicieron en 3 segundos
+Ha = Hay menos atletas orientales que, en promedio, redujeron sus marcas en 4,9 segundos que atletas blancos que lo hicieron en 3 segundos
+```{r}
+#Diferencia de tiempo de los datos de atletas orientales
+reduccion_orientales = orientales_previos - orientales_posterior
+reduccion_orientales
+# Verificar si los datos provienen de una poblacion que siga una distribucion normal
+#QQ-graph
+# x = "orientales.Previo" ya que la resta se guardo de esta forma.
+g <- ggqqplot(data = reduccion_orientales,
+              x = "orientales.Previo",
+              color = "pink",
+              xlab = "Desviaciones",
+              ylab = "Tiempo de reducción para Orientales",
+              title = "Grafico QQ") + theme_minimal()
+
+g
+```
+
+```{r}
+blanca <- data %>% filter(Raza == "Blanca")
+blanca_previos <- data.frame(blanca$Previo)
+blanca_posterior <- data.frame(blanca$Posterior)
+
+#Diferencia de tiempo de los datos de atletas orientales
+reduccion_blanca = blanca_previos - blanca_posterior
+reduccion_blanca
+# Verificar si los datos provienen de una poblacion que siga una distribucion normal
+#QQ-graph
+# x = "blanca.Previo" ya que la resta se guardo de esta forma.
+g <- ggqqplot(data = reduccion_blanca,
+              x = "blanca.Previo",
+              color = "pink",
+              xlab = "Desviaciones",
+              ylab = "Tiempo de reducción para blancas",
+              title = "Grafico QQ") + theme_minimal()
+
+g
+```
+
+No se observan valores atípicos por parte de ambas muestras, por lo que se asume que ambas provienen de una población normal.
+
+Se realizara una prueba para comparar las proporciones de dos grupos.
+```{r}
+n <- c(count(reduccion_orientales)$n, count(reduccion_blanca)$n)
+#casos exitosos
+#primero los orientales y segundo los blancos
+exitos <- c(count(subset(reduccion_orientales, orientales.Previo >= 4.9))$n, count(subset(reduccion_blanca, blanca.Previo >= 3))$n)
+alfa <- 0.05
+prueba <- prop.test(exitos, n=n, alternative = "two.sided", conf.level = 1-alfa)
+print(prueba)
+```
+El resultado no mostró suficiente evidencia para decir que las proporciones son distintas. Se sacó un intervalo de confianza del 95% para la diferencia entre las proporciones muestrales. Las proporciones estimadas fueron de 0.59 para los orientales y 0.42 para los blancos.
