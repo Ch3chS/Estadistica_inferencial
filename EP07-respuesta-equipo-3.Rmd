@@ -6,11 +6,11 @@ date: "2023-05-23"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library ( knitr )
-library ( tidyverse )
-library ( RVAideMemoire )
-library ( rcompanion )
-library ( ez )
+library(knitr)
+library(tidyverse)
+library(RVAideMemoire)
+library(rcompanion)
+library(ez)
 ```
 
 ## Contexto
@@ -161,7 +161,7 @@ La memorista sospecha que hay diferencias significativas en el tiempo de ejecuci
 Para responder, filtren los datos para tener las instancias con 50 o más nodos y seleccionen las columnas con los tiempos de ejecución registrados (en formato ancho). Usando como semilla el valor 43, obtengan muestras aleatorias independientes de 15, 15 y 13 tiempos registrados por las versiones A, B y C, respectivamente. Realicen un análisis estadístico pertinente (enunciar hipótesis, revisar condiciones, seleccionar prueba) para responder la pregunta planteada, utilizando pruebas no paramétricas de ser necesario.
 
 
-```{r}
+```{r obtencion_datos_3}
 set.seed(43)
 
 muestra_3 <- datos[sample(which(datos$n.nodos >= 50), 43), ]
@@ -174,7 +174,39 @@ muestra_3_C <- muestra_3[, 6][31:43]
 
 
 ```
+En este caso las hipótesís son:
+H0: Todos los algoritmos tienen el mismo tiempo de ejecución.
+H1: Al menos uno de los algoritmos tiene un tiempo de ejecución que es distinto
 
+Una prueba paramétrica que nos podría servir para resolver esto es el análisis anova
+
+Para esto vamos a evaluar normalidad a continuación:
+
+```{r prueba_normalidad_3}
+shapiro.test(muestra_3_A)
+shapiro.test(muestra_3_B)
+shapiro.test(muestra_3_C)
+```
+
+Como se puede notar, si bien el p-value de los tiempos de B y C son lo suficientemente altos para que las muestras sea considerada normales, el p-value de los tiempos de A no lo es, por lo que no podemos asegurar que dichas muestras provienen de distribuciones cercanas a la normal, por lo que no usaremos esta prueba paramétrica; en su lugar, nos decantaremos por una prueba no parametríca de iguales características.
+
+En este caso, como las muestras son independientes entre sí y la escala de medición es el tiempo, el cual es ordinal, y la variable independiente tiene almenos 2 niveles, tenemos los requisitos necesarios para usar la prueba de Kruskall.
+
+```{r kruskall3}
+tiempos <- c(muestra_3_A, muestra_3_B, muestra_3_C)
+alg <- c(rep("A", length(muestra_3_A)), rep("B", length(muestra_3_B)), rep("C", length(muestra_3_C)))
+
+datos_fin <- data.frame(tiempos, alg)
+
+kruskal.test(tiempos ~ alg, data = datos_fin)
+```
+Como el p-value es menor a 0.05, que es nuestro nivel de significancia establecido, podemos rechazar la hipótesis nula en favor de la alternativa; luego, para saber cuales de los algoritmos son diferentes podemos ocupar el procedimiento post-hoc a través de Holm.
+
+```{r post-hoc_3}
+pairwise.wilcox.test(datos_fin$tiempos, datos_fin$alg, p.adjust.method = "holm", paired = FALSE, exact = FALSE)
+```
+
+Con respecto al resultado del analisis post-hoc se puede asegurar con un 95% de confianza que existe una diferencia significativa entre los tiempos de A y B; sin embargo, entre A y C, y los B y C esto no sucede. 
 
 ## Pregunta 4
 
@@ -199,8 +231,8 @@ long_sample <- sample %>% pivot_longer(c("mejor.A", "mejor.B", "mejor.C"), names
 
 ```
 En este caso las hipótesís son:
-H0: Al comparar las mismas instancias de iguales características los rendimientos son similares
-H1: Al comparar las mismas instancias de iguales características los rendimientos tienen almenos uno distinto
+H0: Al comparar las mismas instancias de iguales características las las mejores soluciones encontradas son similares
+H1: Al comparar las mismas instancias de iguales características las mejores soluciones encontradas tienen almenos una que es significativamente distinta
 
 Una prueba paramétrica que nos podría servir para resolver esto es el análisis anova
 
@@ -210,14 +242,13 @@ Para esto vamos a evaluar normalidad a continuación:
 shapiro.test(sample$mejor.A)
 shapiro.test(sample$mejor.B)
 shapiro.test(sample$mejor.C)
-
 ```
 Como se puede notar el p-value de los mejores de las 3 muestras es inferior a 0.05, por lo que ninguna de las muestras sigue una distribución normal por lo que no podemos usar ANOVA.
 
 En este caso, como las muestras son independientes entre sí y la escala de medición es el tiempo, el cual es ordinal, y la variable independiente tiene almenos 2 niveles, tenemos los requisitos necesarios para usar la prueba de Kruskall.
 
 
-```{r kruskall}
+```{r kruskall4}
 kruskal.test(Tiempo ~ Algoritmo, data = long_sample)
 ```
 Como se puede notar en el resultado de la prueba, el p-value es lo suficientemente bajo como para rechazar la hipótesis nula en favor de la alternativa, es decir, podemos asegurar con un 95% de confianza que almenos uno de estos posee un rendimiento distinto, es decir, la memorista tiene razón. 
@@ -228,4 +259,4 @@ Ya sabiendo lo anterior procederemos con un analisis post-hoc, donde se usara ho
 pairwise.wilcox.test(long_sample$Tiempo, long_sample$Algoritmo, p.adjust.method = "holm", paired = FALSE, exact = FALSE)
 ```
 
-Con respecto al resultado del analisis post-hoc se puede asegurar con un 95% de confianza que, en las mismas instancias con iguales carácteristicas se puede apreciar una diferencia significativa entre los grupos A y B; sin embargo, entre los grupos A y B, y los B y C esto no sucede. 
+Con respecto al resultado del analisis post-hoc se puede asegurar con un 95% de confianza que, en las mismas instancias con iguales carácteristicas se puede apreciar una diferencia significativa entre los grupos A y B; sin embargo, entre los grupos A y C, y los B y C esto no sucede. 
