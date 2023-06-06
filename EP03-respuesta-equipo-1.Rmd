@@ -1,0 +1,158 @@
+---
+title: "EP03-respuesta-equipo-1"
+author: "Matias Figueroa Contreras - Samoth Godoy - Macarena Soto"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggpubr)
+library(pwr)
+library(tidyverse)
+```
+
+# Contexto
+
+Se sabe que una máquina que envasa detergentes industriales llena bidones con un volumen de producto que sigue una distribución normal con desviación estándar de 1 litro. Usando una muestra aleatoria de 100 envases, el ingeniero a cargo de la planta requiere determinar si la máquina está llenando los bidones con una media de 10 litros.
+
+# Preguntas
+
+1. Si el ingeniero piensa rechazar la hipótesis nula cuando la muestra presente una media menor a 9,7 litros o mayor a 10,3 litros, ¿cuál es la probabilidad de que cometa un error de tipo I?
+
+Para poder establecer con certeza la probabilidad de cometer un error de tipo I se debe tener conocimiento del valor alpha asociado a la prueba.
+
+Se tiene conocimiento de: la desviación estándar, número de muestras, media nula, error estándar y valores en los que se rechaza la hipótesis nula, por lo que se está en condiciones de graficar la distribución.
+
+```{r}
+# Datos del contexto del problema
+sigma = 1
+n = 100
+media_nula = 10
+# Calculo del error estándar
+SE = sigma/sqrt(n)
+SE
+
+#Intervalo en X con los datos de la distribución normal con media=10 y 
+# desviación estándar = 0.1 en el eje Y, para graficar la distribución
+x = seq(9.3, 10.7, 0.01)
+y = dnorm(x, mean = media_nula, sd=SE)
+df = data.frame(x, y)
+
+#Construcción del gráfico con el data frame anterior
+g = ggplot(data=df, aes(x))
+g = g + stat_function(fun = dnorm, args=list(mean=media_nula, sd=SE), colour="red ", size=1)
+g = g + ylab ("")
+g = g + scale_y_continuous(breaks = NULL)
+g = g + scale_x_continuous(name = "Llenado de bidones [L]", breaks=seq(9.6, 10.4, 0.1))
+g = g + theme_pubr()
+
+#Datos de la pregunta, que hacen referencia a las cotas inferior y superior en el gráfico para el alpha
+q_critico_inferior = 9.7 # [-INF, 9.7] 
+q_critico_superior = 10.3 # [10.3, INF]
+
+#Se agrega al gráfico el área que existe en las cotas mencionadas y se muestra el gráfico
+g = g + geom_area(data=subset(df, x < q_critico_inferior), aes(y=y), colour="red", fill="red", alpha = 0.5)
+g = g + geom_area(data=subset(df, x > q_critico_superior), aes(y=y), colour="red", fill="red", alpha = 0.5)
+print(g)
+
+#Calculo del alpha (el área de las dos cotas)
+alpha_medio_inf = pnorm(q_critico_inferior, mean = media_nula, sd=SE)
+alpha_medio_sup = pnorm(q_critico_superior, mean = media_nula, sd=SE, lower.tail = FALSE)
+alpha = alpha_medio_inf + alpha_medio_sup
+print(alpha)
+```
+De manera gráfica, el área bajo la curva en las colas de los extremos de la distribución corresponde al valor alpha que se desea conocer, este se calcula mediante la prueba pnorm asociada para las muestras que presenten una media menor a 9.7 y mayor a 10.3, que sumadas ambos valores entregados se obtiene el área total en ambos extremos, obteniendo así el valor de alpha.
+
+De esta manera se sabe que alpha=0.002699796, teniendo un 0.22699796% de probabilidades de cometer un error de tipo I cuando la muestra tenga media menor a 9.7 o mayor 10.3
+
+2. Si el verdadero volumen medio de los bidones fuera de 10,2 litros, ¿cuál sería la probabilidad de que el ingeniero, que obviamente no conoce este dato, cometa un error de tipo II?
+
+Para conocer la probabilidad de que el ingeniero cometa error de tipo II, es decir que no rechace la H0 en favor de la alternativa, lo que se hizo primero fue graficar una  curva,en donde el área sombreada es el poder.Luego se calculó beta a través de la fórmula de poder “poder = 1 - beta”, para esto, había que conocer el valor de el poder total, el cual se obtuvo  sumando el poder medio inferior con el poder medio superior,dando como resultado 0.16 aproximadamente, así beta tiene un valor de 0.84 aproximadamente.
+
+Por lo que la probabilidad de cometer un error de tipo II es del 84%.
+
+```{r}
+#Dato dado en la pregunta
+media_efecto = 10.2
+
+#Intervalo en X con los datos de la distribución normal con media=10.2 y 
+# desviación estándar = 0.1 en el eje Y, para graficar la distribución a comparar
+x1 = seq(9.3, 10.7, 0.01)
+y1 = dnorm(x1, mean = media_efecto, sd=SE)
+df1 = data.frame(x1, y1)
+
+#Se agrega al gráfico de la pregunta 1 el nuevo gráfico generado por los datos del data frame anterior
+g = g + stat_function(fun = dnorm, args=list(mean=media_efecto, sd=SE), colour="blue", size=1)
+g = g + geom_area(data=subset(df1, x < q_critico_inferior), aes(x=x1, y=y1), colour="blue", fill="blue", alpha = 0.5)
+g = g + geom_area(data=subset(df1, x > q_critico_superior), aes(x=x1, y=y1), colour="blue", fill="blue", alpha = 0.5)
+print(g)
+
+#Se calcula el poder estadístico con las cotas del gráfico anterior para este
+# nuevo gráfico
+poder_medio_inf = pnorm(q_critico_inferior, mean = media_efecto, sd = SE)
+poder_medio_sup = pnorm(q_critico_superior, mean = media_efecto, sd = SE, lower.tail = FALSE)
+poder = poder_medio_inf + poder_medio_sup
+cat("Poder = ", poder, "\n")
+
+#Se calcula el beta, el cual es la probabilidad de cometer un error de tipo II.
+beta = 1 - poder
+cat("Beta = ", beta, "\n")
+```
+
+3. Como no se conoce el verdadero volumen medio, genere un gráfico del poder estadístico con las condiciones anteriores, pero suponiendo que el verdadero volumen medio podría variar de 9,5 a 10,5 litros.
+
+Para graficar el poder estadístico con la condición de que el volumen medio podría variar de 9,5 a 10,5 litros se utilizó un efecto con una secuencia en donde los valores fueron dados por el cálculo de la d de Cohen dando así valores de -0.5 y 0.5 agregando la separación de 0.01 al rango de valores. Luego se calculó el poder estadístico en este rango y con estos dos datos se procede a gráficar.
+
+```{r}
+#Se calcula el efecto según los datos de la pregunta y el contexto dado
+efecto_izq = (9.5 - media_nula)/sigma
+efecto_der = (10.5 - media_nula)/sigma
+efecto = seq(efecto_izq, efecto_der, 0.01)
+
+#Calculo del poder estadístico para el rango obtenido
+poder_estadistico = power.t.test(n=n, delta=efecto, sd=SE, sig.level=alpha, type="one.sample", alternative="two.sided")$power
+
+#Datos del tamaño del efecto en relación con el poder estadístico de cada uno
+# a ser graficados
+datos = data.frame(efecto, poder_estadistico)
+
+#Creación del gráfico con los datos anteriores
+g = ggplot(datos, aes(efecto, poder_estadistico))
+g = g + geom_line(colour="red")
+g = g + labs(colour="")
+g = g + ylab("Poder estadístico")
+g = g + xlab("Tamaño del efecto")
+g = g + scale_color_manual(values=c("red", "blue", "chartreuse4", "orange"))
+g = g + theme_pubr()
+g = g + ggtitle("Curva de poder para el tamaño del efecto")
+g = g + geom_vline(xintercept=0, linetype="dashed")
+print(g)
+```
+
+Del gráfico podemos observar que a medida que el tamaño del efecto se separa de los valores de media dados, el poder estadístico va aumentando drasticamente hasta el punto de llegar a ser 1, lo que significa que entre más aumente el tamaño del efecto más es la probabilidad de no cometer un error de tipo II llegando incluso a ser un 100% de probabilidad.
+
+4. Considerando un volumen medio de 10 litros, ¿cuántos bidones deberían revisarse para conseguir un poder estadístico de 0,75 y un nivel de significación de 0,05?
+
+Para el power t test se puede tener como incógnita una de las variables que recibe, en este caso corresponde a la cantidad de bidones para obtener los parámetros deseados. Se establece el delta como la diferencia entre la media de la pregunta (10) y la suposición de la media planteada en la pregunta 2.) (10.2), la desviación estándar establecida en el enunciado, y tanto el poder estadístico como el nivel de significancia se establecen en la presente pregunta.
+
+```{r}
+#Calculo del numero de bidones para los datos otorgados en la pregunta, teniendo en cuenta 
+# los datos otorgados en el contexto del problema
+n_bidones = power.t.test(n=NULL, delta=0.2, sd=sigma, sig.level=0.05, power=0.75, type="one.sample", alternative="two.sided")$n
+cat("Numero de bidones a revisar = ", floor(n_bidones), "\n")
+```
+Aplicando el test se obtiene un valor n = 175 (valor redondeado ya que cantidad de bidones es una variable discreta) correspondiendo a la cantidad de bidones necesarios para obtener un poder estadístico de 0.75 y un nivel de significancia de 0.05
+
+5. ¿Y si el ingeniero fuese muy exigente y quisiera reducir la probabilidad de cometer un error de tipo I a un 1% solamente?
+
+Al igual que para la pregunta anterior, se puede tener como incógnita una de las variables que recibe power t test, y nuevamente corresponde a la cantidad de bidones para obtener así tener una probabilidad del 1% para cometer error de tipo I. Se establecen los mismos parámetros fundamentados en la pregunta 4.), con la única diferencia que se establece un nivel de significancia del 1%.
+
+```{r}
+#Calculo del numero de bidones para los datos otorgados en la pregunta, teniendo en cuenta 
+# los datos otorgados en el contexto del problema
+n_bidones = power.t.test(n=NULL, delta=0.2, sd=sigma, sig.level=0.01, power=0.75, type="one.sample", alternative="two.sided")$n
+cat("Numero de bidones a revisar = ", floor(n_bidones), "\n")
+```
+
+Aplicando el test se obtiene un valor n = 267 (valor redondeado ya que cantidad de bidones es una variable discreta) correspondiendo a la cantidad de bidones necesarios para obtener un nivel de significancia de 0.01

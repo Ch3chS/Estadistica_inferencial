@@ -1,0 +1,36 @@
+---
+title: "EP01-respuesta-equipo-1"
+author: "Matias Figueroa - Samoth Godoy - Macarena Soto"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(ggpubr)
+```
+
+
+## ¿Se encuestaron más o menos la misma cantidad de gente en cada provincia de la RM?
+
+La variable relevante para resolver el problema es la Provincia la cual corresponde a una variable categórica nominal, por otra parte, la medida estadística que nos permite obtener la cantidad de gente encuestada para cada provincia es la frecuencia.
+
+Con lo anterior se genera el siguiente código para obtener los datos de frecuencia y graficarlos, para así responder a la pregunta:
+
+```{r codigo}
+# Se leen y guardan los datos del csv en una variable
+datos = read.csv2("EP01 Datos Casen 2017.csv", stringsAsFactors = TRUE)
+
+# Se genera la tabla de frecuencia con la variable categórica Provincia
+tabla_frecuencia = as.data.frame(xtabs(~ provincia, data = datos))
+tabla_frecuencia
+
+# Se crea el gráfico que permite representar mejor los datos para la pregunta dada
+grafico = ggbarplot(tabla_frecuencia, x = "provincia", y = "Freq", fill = "provincia", palette = c("purple", "orange", "red", "green", "blue", "yellow"),  tittle = "Cantidad de encuestados por Provincia", xlab="Provincias", ylab="Frecuencia")
+print(grafico)
+```
+
+En base a la frecuencia y al gráfico de barras realizado a partir de las mismas se evidencia que la población de la provincia de Santiago es la que posee con diferencia el mayor número de encuestados (frecuencia), sin embargo es importante notar que las demás provincias poseen frecuencias similares en la medida estadística observada.
+
+

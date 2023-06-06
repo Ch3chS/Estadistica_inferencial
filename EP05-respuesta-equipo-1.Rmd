@@ -1,0 +1,56 @@
+---
+title: "EP05-respuesta-equipo-1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggpubr)
+library(ez)
+```
+
+## Pregunta - Grupo 01
+
+En este momento, los investigadores buscan determinar si existen diferencias en el tiempo que tardan los usuarios en formular una consulta para un problema de dificultad fácil en las áreas de computación, literatura y química.
+
+H0: el tiempo en que tardan los usuarios en formular una consulta para un problema de dificultad facil es igual para las tres areas
+HA: el tiempo en que tardan los usuarios en formular una consulta para un problema de dificultad facil es diferente para una o mas de las tres areas
+
+```{r}
+# Lectura y estructura de datos para revisar las condiciones y realizar la prueba
+data = read.csv("EP05 Datos.csv", encoding = "UTF-8", dec=",")
+facil = data %>% filter(dificultad=="Baja")
+computacion = facil %>% filter(area=="Computación")
+computacion = computacion[["tiempo"]]
+literatura = facil %>% filter(area=="Literatura")
+literatura = literatura[["tiempo"]]
+quimica = facil %>% filter(area=="Química")
+quimica = quimica[["tiempo"]]
+datos = data.frame(computacion, literatura, quimica)
+datos = datos %>% pivot_longer (c( "computacion", "literatura" , "quimica" ), names_to ="area" , values_to = "tiempo")
+datos[["area"]] = factor(datos[["area"]])
+datos[["instancia"]] = factor(1:nrow(datos))
+
+# Graficos QQ para comprobar la condicion de normalidad en las muestras
+g = ggqqplot(datos, x="tiempo", y="area", color="area")
+g = g + facet_wrap(~ area)
+g = g + rremove("x.ticks") + rremove("x.text") 
+g = g + rremove("y.ticks") + rremove("y.text") 
+g = g + rremove("axis.title")
+print(g)
+
+# Realizacion del la prueba de homocedasticidad de Levene para comprobar que la varianza es homogenea entre los grupos
+#  y test ANOVA para verificar si existen diferencias significativas en el tiempo en que tardan los usuarios en formular
+#  una consulta para un problema de dificultad fácil
+prueba = ezANOVA(data=datos, dv=tiempo, between=area, wid=instancia, return_aov=TRUE)
+prueba
+aov = prueba$aov
+
+# Analisis Post Hoc con el metodo de Tukey dado que la prueba indica que si hay diferencias significativas, y
+#  este permite determinar cuales grupos son significativamente diferentes entre si
+alpha = 0.05
+post_hoc = TukeyHSD(aov, "area", ordered = TRUE, conf.level = 1 - alpha)
+post_hoc
+```
+

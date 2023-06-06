@@ -1,0 +1,116 @@
+---
+title: "EP02-respuesta-equipo-1"
+author: "Matias Figueroa - Samoth Godoy - Macarena Soto"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+```
+
+Preguntas:
+
+* El Comité Olímpico cree que el mejor tiempo medio de los atletas negros después de ingresar al programa de entrenamiento es superior a 12,4 segundos. ¿Soportan los datos esta afirmación?
+
+Con lo anterior, se establecen las hipótesis para la media de los atletas negros después del entrenamiento:
+H0: media = 12,4
+HA: media > 12,4
+
+```{r }
+#Datos generales
+DATOS = read.csv("EP02-datos.csv" , stringsAsFactors = TRUE)
+#Datos atletas negros
+atletas_negros = DATOS%>%filter(Raza == "Negra")
+
+#Test de normalidad
+shapiro.test(atletas_negros$Posterior)
+
+#T test para inferir sobre la media de una muestra (atletas negros tiempo posterior al entrenamiento), con una significancia de 0.05
+alpha = 0.05
+t.test(atletas_negros$Posterior, mu=12.4, alternative="greater", conf.level= 1 - alpha)
+```
+Primeramente se identifican las muestras a utilizar en la prueba, siendo de una cola con muestras independientes, con la utilización del t test se obtiene el p value, que con un valor de 0.27 es mayor que el nivel de significancia por lo que no se rechaza la hipótesis nula establecida.
+Se concluye con lo anterior que los atletas negros no superaron la marca de 12.4 posterior al programa de entrenamiento.
+
+
+* ¿Sugieren los datos que la mejor marca de los atletas blancos se reduce en promedio 3,2 segundos tras el entrenamiento?
+
+Se establecen las hipótesis para la media obtenida de la reducción de tiempo del entrenamiento de los atletas blancos:
+H0: media = 3,2
+HA: media != 3,2
+
+```{r }
+#Datos atletas blancos
+atletas_blancos = DATOS%>%filter(Raza == "Blanca")
+
+#Test de normalidad para ambas muestras
+shapiro.test(atletas_blancos$Previo)
+shapiro.test(atletas_blancos$Posterior)
+
+#T test para inferir sobre la media de dos muestras pareadas (atletas blancos tiempo previo y posterior al entrenamiento), con una significancia de 0.05
+alpha = 0.05
+t.test(x=atletas_blancos$Previo, y=atletas_blancos$Posterior, paired=TRUE, mu = 3.2, alternative = "two.sided", conf.level = 1 - alpha)
+```
+Nuevamente se identifican las muestas para establecer la prueba, en esta ocasión se tienen dos muestras pareadas con dos colas, el t test correspondiente nos arroja un valor mayor al nivel de significancia no rechazando la hipótesis nula.
+De esta manera se concluye que los atletas blancos si reducen su promedio tras el entrenamiento.
+
+
+* ¿Es posible afirmar que, en promedio, los atletas blancos superan a los orientales por menos de 4 segundos antes del entrenamiento?
+
+Se establecen las hipótesis para la media de la diferencia entre los datos antes de le ntrenamiento de los atletas blancos en relación con los orientales:
+H0: media = 4
+HA: media < 4
+
+```{r }
+#Datos atletas orientales
+atletas_orientales = DATOS%>%filter(Raza == "Oriental")
+
+#Test de normalidad para ambas muestras
+shapiro.test(atletas_blancos$Previo)
+shapiro.test(atletas_orientales$Previo)
+
+#T test para inferir sobre la media de dos muestras independientes (atletas blancos y atletas orientales tiempo previo al entrenamiento), con una significancia de 0.05
+alpha = 0.05
+t.test(x = atletas_blancos$Previo, y = atletas_orientales$Previo, paired = FALSE, alternative = "less", mu = 4, conf.level = 1 - alpha)
+```
+
+Para este ejercicio, al igual que el anterior, se definió que la prueba va a ser de dos colas , en donde la H0 es que los atletas blancos superan a los orientales por menos de 4 segundos y la Ha es que no lo superan en 4 segundos.Para comprobar esto se utilizó t-test dando un resultado de 2.2e-16 el p value, por lo que se acepta la hipótesis alternativa.
+
+
+* ¿Será cierto que hay más atletas orientales que, en promedio, redujeron sus marcas en 5 segundos que atletas negros que lo hicieron en 1,4 segundos?
+
+Se establece que la H0 es hay más atletas orientales que, en promedio, redujeron sus marcas en 5 segundos que atletas negros que lo hicieron en 1,4 segundos   y la Ha es que no lo hicieron.
+
+
+```{r }
+#Calculo de la diferencia entre el tiempo previo y posterior al entrenamiento para atletas orientales y negros
+atletas_orientales_diferencia = atletas_orientales$Previo - atletas_orientales$Posterior
+atletas_negros_diferencia = atletas_negros$Previo - atletas_negros$Posterior
+
+#Calculo del numero de éxitos para atletas orientales que redujeron su marca en al menos 5 segundos
+exitos_atletas_orientales = length(atletas_orientales_diferencia[atletas_orientales_diferencia >= 5])
+#Calculo del numero de éxitos para atletas negros que redujeron su marca en al menos 1,4 segundos
+exitos_ateltas_negros = length(atletas_negros_diferencia[atletas_negros_diferencia >= 1.4])
+exitos = c(exitos_atletas_orientales, exitos_ateltas_negros)
+
+#Numero total de atletas orientales y negros
+n_atletas_orientales = length(atletas_orientales_diferencia)
+n_atletas_negros = length(atletas_negros_diferencia)
+n = c(n_atletas_orientales, n_atletas_negros)
+
+# Condición de éxito-fracaso:
+condicion_atletas_orientales = exitos_atletas_orientales >= 10 && (n_atletas_orientales - exitos_atletas_orientales) >= 10
+condicion_atletas_negros = exitos_ateltas_negros >= 10 && (n_atletas_negros - exitos_ateltas_negros) >= 10
+condicion_exito_fracaso = condicion_atletas_orientales && condicion_atletas_negros
+condicion_exito_fracaso
+
+#Wilson test para inferir sobre la proporción de dos muestras independientes (reducción de marca de atletas orientales de 5 segundos y atletas negros de 1,4 segundos), con una significancia de 0.05
+alpha = 0.05
+prop.test(exitos, n = n, alternative = "greater", conf.level = 1 - alpha)
+```
+
+Como hablamos de cantidades, es decir de proporciones se utiliza la prop.test. El p-value es 0.1741 aceptando la hipótesis nula
