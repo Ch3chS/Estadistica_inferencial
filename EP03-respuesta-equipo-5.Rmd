@@ -211,4 +211,5 @@ power.t.test(n = NULL, delta = delta, # Revisar valor de delta que es lo que fal
              alternative = "one.sided")$n
 
 ```
-Para este caso, se puede observar que el tamaño aumenta a casi 4 bidones, debido a que se pide un mayor nivel de certeza de no rechazar la hipótesis nula cuando esta es correcta.
+Para este caso, se puede observar que el tamaño aumenta a casi 4 bidones, debido a que se pide un mayor nivel de certeza de no rechazar la hipótesis nula cuando esta es correcta.\
+

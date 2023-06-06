@@ -17,11 +17,12 @@ Integrantes: Clemente Aguilar, Fernándo Pérez, Sergio Espinoza y Cristóbal Ma
 # Importacion de librerias
 library(dplyr)
 library(ggpubr)
+library(xlsx)
 ```
 
 ```{r}
 # Lectura de datos
-data <- read.csv2("EP02-datos.csv", stringsAsFactors = TRUE)
+data <- read.xlsx("EP02-datos.xlsx", sheetIndex = 1, stringsAsFactors = TRUE)
 ```
 
 ## Pregunta 1

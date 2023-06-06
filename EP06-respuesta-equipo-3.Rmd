@@ -64,7 +64,7 @@ Como se pudo notar en todos los casos el p-value resultante es bastante mayor qu
 Finalmente # para el caso de esfericidad, utilizaremos la funcion ezANOVA() para calcularla y, a demas, calcular anova al mismo tiempo:
 
 ```{r esfericidad}
-anova <- ezANOVA(data = datosT, dv = tiempo, within = dificultad,
+anova <- ezANOVA(data = datosT, dv = tiempo, within = dificultad,  # within para muestras pareadas
                  wid = id, return_aov = TRUE)
 
 print(anova$`Mauchly's Test for Sphericity`)

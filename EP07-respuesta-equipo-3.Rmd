@@ -260,3 +260,4 @@ pairwise.wilcox.test(long_sample$Tiempo, long_sample$Algoritmo, p.adjust.method 
 ```
 
 Con respecto al resultado del analisis post-hoc se puede asegurar con un 95% de confianza que, en las mismas instancias con iguales carácteristicas se puede apreciar una diferencia significativa entre los grupos A y B; sin embargo, entre los grupos A y C, y los B y C esto no sucede. 
+

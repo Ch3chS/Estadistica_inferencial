@@ -11,6 +11,7 @@ library(xlsx)
 library(tidyverse)
 library(ggpubr)
 library(ez)
+library(RVAideMemoire)
 ```
 
 ## Pregunta 1
@@ -154,3 +155,4 @@ print(prueba)
 
 ```
 Como el p value obtenido es menor que el nivel de significancia escogido, se rechaza la hipótesis nula en favor de la alternativa, indicando que la proporción de éxitos es distinta para al menos un ramo.
+
