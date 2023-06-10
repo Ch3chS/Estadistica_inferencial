@@ -1,0 +1,158 @@
+---
+title: "E4_Grupo5"
+author: "Fernando Pérez, Cristóbal Marchant, Sergio Espinoza, Clemente Aguilar"
+date: "2023-03-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(xlsx)
+library(tidyverse)
+library(ggpubr)
+library(ez)
+library(RVAideMemoire)
+```
+
+## Pregunta 1
+
+En su desquiciada investigación para acabar con los vampiros, Van Helsing ha descubierto que sus
+enemigos tienen predilección por la sangre humana tipo AII+. El cazador sospecha que estos monstruos tienen preferencia por la sangre de los adultos, pero aún no está convencido. Por esta razón, mediante artimañas, ha encerrado a 14 niños y 20 adultos con este tipo de sangre en un reducto de vampiros. Tras 3 noches, 3 de los niños y 13 de los adultos fueron atacados. ¿Existe relación entre el ataque de vampiros y la edad de la víctima?
+
+Para esta pregunta utilizaremos la Prueba de Fisher. 
+Tenemos ambas variables dicotomicas:
+  - rango etario: niños o adultos
+  - morida: si o no
+Considerando un 95% de confianza tenemos el siguiente desarrollo y las siguientes hipotesis:
+
+Ho: Las variables son independientes
+Ha: Las variables estan relacionadas
+
+Se tiene el siguiente desarrollo:
+```{r}
+alfa <- 0.05
+
+# Tabla de contingencia
+mordida <- c(rep("Si",16), rep("No",18))
+          # Total de observaciones en cantidad de mordidos = 3 niños + 13 adultos = 16
+          # Total de observaciones en cantidad de no mordidos = 11 niños + 7 adultos = 18
+          # 16 + 18 = 34
+rango_etario <- c(rep("Niños",14), rep("Adultos",20))
+          # Total de observaciones en la variable niños = 14
+          # Total de observaciones en la variable adultos = 20
+          # 14 + 20 = 34
+datos <- data.frame(rango_etario, mordida)
+tabla <- xtabs(~., datos)
+print(tabla)
+
+# Se aplica prueba extacta de Fisher
+prueba <- fisher.test(tabla, 1-alfa)
+print(prueba)
+```
+Se tiene p-value < alfa, por lo que se rechaza la hipotesis nula en favor de la alternativa.
+
+## Pregunta 2
+
+Una Universidad ha detectado que muchos de sus nuevos estudiantes ingresan con elevados niveles de
+ansiedad. Para ello, han decidido evaluar un nuevo programa de bienvenida que busca facilitar la
+adaptación a la vida universitaria. Para ello, han reclutado a un grupo de 15 voluntarios a quienes se les
+midió el nivel de ansiedad (alto o bajo) antes y después de participar en el programa de bienvenida:
+- 4 estudiantes no presentaron ansiedad ni antes ni después.
+- 5 estudiantes inicialmente ansiosos dejaron de estarlo.
+- 4 estudiantes mantuvieron un elevado nivel de ansiedad.
+- Los 2 estudiantes restantes desarrollaron síntomas de ansiedad tras participar en el programa.
+¿Qué se puede concluir acerca del nuevo programa de bienvenida?
+
+Para esta pregunta optamos por realizar una prueba de McNemar, puesto que se cumplen las condiciones para realizar dicha prueba, ya que se esta analizando las respuestas de los alumnos antes y despues de un estimulo, que en este caso correspondería al programa de bienvenida de la universidad. Además, esta respuesta de los alumnos corresponde a una varaible de tipo dicotomica, porque es una respuesta de tipo si o no.
+
+Además de utilizar un valor de 0.05 para el alfa, se, tiene que las hipotesis a probar son las siguientes:
+
+Ho: no hay cambios significativos en las respuestas.
+Ha: sí hay cambios significativos en las respuestas.
+
+```{r}
+alumnos<- seq(1:15)
+medicion1 <- c(rep("No Ansioso", 4), rep("Ansioso", 9), rep("No Ansioso", 2))
+medicion2 <- c(rep("No Ansioso", 9), rep("Ansioso", 6))
+datos <- data.frame(alumnos, medicion2, medicion1)
+tabla<- table(medicion2, medicion1)
+tabla
+prueba <- mcnemar.test(tabla)
+prueba
+```
+Obteniendo un p-value > alfa (0.05) se falla al rechazar la hipotesis nula, por lo que no habrian cambos significativos en la ansiedad de los alumnos tras el programa de bienvenida.   
+
+## Pregunta 3
+
+En noviembre de 2019, se realizó un estudio acerca de la aprobación al presidente Sebastián Piñera entre
+440 profesores y estudiantes de una prestigiosa universidad, obteniéndose los resultados que se muestran
+en la tabla. ¿Son similares las opiniones de ambos segmentos de la comunidad universitaria?
+
+Para esta pregunta se identifican variables de tipo categoricas y se busca saber si las proporciones (en este caso las opiniones de estudiantes y profesores) se mantienen iguales o no, por lo que resulta adecuado aplicar una prueba chi-cuadrado de independencia.
+
+Usando un alfa de valor 0.05, se hará uso de la prueba chi-cuadrado de independencia, donde las respectivas hipotesis son las siguientes:
+
+Ho: las variables de las opiniones de estudiantes y profesores son independientes.
+Ha: las variables de las opiniones de estudiantes y profesores son dependientes.
+
+
+```{r}
+estudiantes <- c(35, 208, 17)
+profesores <- c(20, 151, 9)
+
+tabla <- as.table(rbind(estudiantes, profesores))
+
+dimnames(tabla) <- list(rango = c("Estudiantes", "Profesores"),
+                        opinion = c("Aprueba", "Desaprueba", "Ninguna"))
+
+tabla
+#chi-cuadrado
+prueba <- chisq.test(tabla)
+prueba
+```
+
+Como el p-value es bastante mayor que nuestro alfa, se acepta la hipotesis nula, es decir, podemos afirmar que las proporciones de opiniones de los estudiantes y los profesores de dicha universidad son iguales.
+
+## Pregunta 4
+
+La Facultad de Ingeniería desea saber si existe diferencia significativa en el desempeño de los estudiantes en asignaturas críticas de primer semestre. Para ello, le ha entregado un archivo de datos que, para 3 asignaturas, indica si una muestra de 50 estudiantes aprobó o reprobó. ¿Qué puede concluir la Facultad?
+Indicación: obtenga la muestra a partir del archivo “EP04 Datos.csv” que se encuentra en el directorio compartido, usando la semilla 685. Considere un nivel de significación α=0,05.
+
+Para analizar el desempeño de los estudiantes se utilizará el test Q de Cochran, debido a que consideramos que las observaciones son independientes entre sí, estas son de carácter dicotómico (Reprobado/Aprobado), el tamaño de la muestra que utilizaremos es suficientemente grande y las variables son categóricas.
+
+Considerando un éxito como aprobación de un ramo, planteamos nuestras hipótesis:
+
+Ho: La proporción de éxitos es la misma para todos los ramos.
+Ha: La proporción de éxitos es distinta para al menos un ramo.
+
+```{r}
+# Seed
+set.seed(685)
+# Leemos los datos del archivo
+datos <- read.xlsx("EP04 Datos.xls",1)
+
+#Elegimos una muestra de la población (50 personas)
+instancia <- 1:50
+muestra <- slice_sample(datos, n=50)
+
+calculo <- ifelse(muestra$Calculo == 'A', 1, 0)
+algebra <- ifelse(muestra$Algebra == 'A', 1, 0)
+fisica <- ifelse(muestra$Fisica == 'A', 1, 0)
+
+data1 <- data.frame(instancia, calculo, algebra, fisica)
+
+# Pasarlo al formato largo
+data2 <- data1 %>% pivot_longer(c("calculo", "algebra", "fisica"),
+                              names_to = "ramo",
+                              values_to = "situacion")
+
+data2[["instancia"]] <- factor(data2[["instancia"]])
+data2[["ramo"]] <- factor(data2[["ramo"]])
+
+prueba <- cochran.qtest(situacion ~ ramo | instancia,
+                        data = data2, alpha = 0.05)
+print(prueba)
+
+```
+Como el p value obtenido es menor que el nivel de significancia escogido, se rechaza la hipótesis nula en favor de la alternativa, indicando que la proporción de éxitos es distinta para al menos un ramo.
+

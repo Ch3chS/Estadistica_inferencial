@@ -1,0 +1,263 @@
+---
+title: "EP07_Grupo 3"
+output: html_document
+date: "2023-05-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(tidyverse)
+library(RVAideMemoire)
+library(rcompanion)
+library(ez)
+```
+
+## Contexto
+
+En el trabajo de título de una estudiante del DIINF se reportan tiempos de ejecución (en milisegundos) y la cercanía con la solución óptima (en por ciento) de la mejor solución encontrada con tres versiones de un algoritmo genético para resolver instancias del problema del vendedor viajero disponibles en repositorios públicos. Ahora debe enfrentar el análisis de estos datos, por que está solicitando ayuda de los estudiantes de Estadística Inferencial.
+
+## Pregunta 1
+
+Observando los datos, la memorista sospecha que hay diferencias significativas en el tiempo de ejecución entre las versiones A y B del algoritmo cuando las instancias tienen 70 o más nodos. ¿Los datos respaldan la intuición de la memorista? Para responder, filtren los  datos para tener las instancias con 70 o más nodos y seleccionen las columnas de los tiempos de ejecución de las versiones A y B en  formato ancho. Usando como semilla el valor 73, obtengan muestras aleatorias independientes de 24 tiempos registrados por la versión A y 20 tiempos registrados por la versión B del algoritmo. Lleven los datos a formato largo y utilicen la escalera de potencias de Tukey para analizar las muestras obtenidas.
+
+### Hipótesis:
+
+##### **H0 : Los tiempos de ejecución entre la versión A y B del algoritmo cuando estas poseen instancias de 70 o más nodos, no poseen diferencias significativas**
+$$ \mu_{dif} = 0 $$
+
+##### **Ha : Los tiempos de ejecución entre la versión A y B del algoritmo cuando estas poseen instancias de 70 o más nodos, poseen diferencias significativas.**
+$$ \mu_{dif}  \neq 0 $$
+
+```{r}
+set.seed(73)
+datos <-read.csv(file="EP07 Datos.csv")
+```
+
+### Selección de muestras para el algoritmo A y B
+Primero, se seleccionan los datos que posean 70 nodos o más, los cuales están en formato ancho. Luego, se seleccionan de forma aleatoria 24 muestras para el tiempo del algoritmo A y 20 para el algoritmo B.
+```{r}
+# Data frame con n.nodos >= 70 
+muestra <- datos[sample(which(datos$n.nodos >= 70), 44), ]
+muestra_t_A <- muestra[, 4][1:24]
+muestra_t_B <- muestra[, 5][25:44]
+```
+
+### Prueba de normalidad para cada muestra
+```{r}
+shapiroMuestraA <- shapiro.test(muestra_t_A)
+shapiroMuestraB <- shapiro.test(muestra_t_B)
+c(shapiroMuestraA$p.value, shapiroMuestraB$p.value)
+```
+Considerando un nivel de significancia de alpha = 0.05, al aplicar shapiro.test a las muestras del algoritmo A y del algoritmo B, se da cuenta que el valor p obtenido en ambas pruebas, es menor al alpha. En consecuencia, dichas muestras no siguen una distribución cercana a la normal y es necesario realizar una transformación de los datos para poder analizarlos. En este caso, se utilizará la escalera de potencias de Tukey. Sin embargo, los datos se deben llevar a formato largo para poder utilizar la escalera de potencias de Tukey para analizar las muestras obtenidas.  
+```{r}
+id <- factor(1:44)
+algoritmos <- c(
+                replicate(24, "A"),
+                replicate(20, "B")
+                )
+tiempos <- c(muestra_t_A, muestra_t_B)
+data <- data.frame(
+                    id <- id,
+                    algoritmos <- algoritmos,
+                    tiempos <- tiempos
+                    )
+```
+
+### Aplicación de la escalera de potencias de Tukey
+```{r}
+transformada <- transformTukey(
+                            data$tiempos,
+                            start <- -2,
+                            end <- 2,
+                            int <- 0.001,
+                            returnLambda  <- FALSE
+                            )
+```
+
+Al observar el gráfico Q-Q obtenido al aplicar la escalera de potencias de Tukey, se puede observar que los datos se ajustan a una distribución normal. En consecuencia procede a aplicar una prueba t para dos muestras no independientes.
+
+Luego, se procede a verificar si se cumplen las condiciones necesarias para poder aplicar la prueba t para dos muestras no independientes:
+
+- Las muestras obtenidas, tanto para el algoritmo A como para el algoritmo B, fueron escogidas aleatoriamente y son independientes entre sí.
+- Según la transformada de Tukey aplicada se tiene que los nuevos datos siguen una distribución normal, esto debido a que la prueba de shapiro da un valor 0.1826 mayor al 0.05, que es nuestro valor de alfa.
+
+Dado que se cumplen, se procede a aplicar la prueba ya mencionada:
+
+### Aplicación de t test para dos muestras independientes
+```{r}
+data$tiempos <- transformada
+alfa <- 0.05
+muestraATransformada <- (data %>% filter(algoritmos....algoritmos == "A"))$tiempos
+muestraBTransformada <- (data %>% filter(algoritmos....algoritmos == "B"))$tiempos
+t.test(
+        x <- muestraATransformada,
+        y <- muestraBTransformada,
+        paired = FALSE,
+        alternative <- "two.sided",
+        conf.level = 1 - alfa
+        )$p.value
+```
+Dado que el valor p es menor a 0.05, se rechaza la hipótesis nula en favor de la hipótesis alternativa, por lo tanto, las sospechas de la memorista son ciertas, en otras palabras, las diferencias entre los algoritmos A y B para instancias de 70 o más nodos presentan diferencias significativas.
+
+## Pregunta 2
+
+### Enunciado
+La memorista también sospecha que, al comparar las mismas instancias de iguales características, las mejores soluciones encontradas por las versiones A y B tienen rendimientos distintos. ¿Estará en lo cierto? \
+
+Para responder, filtren los datos para tener las instancias con 60 o más nodos y seleccionen las columnas con el mejor rendimiento de las versiones A y B en formato ancho. Usando como semilla el valor 13, obtengan una muestra aleatoria de 22 instancias. Realicen un análisis estadístico pertinente (enunciar hipótesis, revisar condiciones, seleccionar prueba) para responder la pregunta planteada, utilizando pruebas no paramétricas de ser necesario.
+
+
+### Respuesta
+
+Para esto usaremos un nivel de significancia del 0.05
+
+```{r}
+alpha = 0.05
+```
+
+
+Se obtienen los datos del archivo csv y se saca una muestra de 22 instancias en las que se tengan los mejores tiempos de las versiones A y B:
+
+```{r obtencion_datos_2}
+data <- read.csv2("EP07 Datos.csv", sep = ",", stringsAsFactors = TRUE)
+data <- subset(data, data$n.nodos >= 60)  # Se filtran las que tienen 60 o más nodos
+data <- select(data, mejor.A, mejor.B)    # Se seleccionan las columnas de mejor.A y mejor.B
+
+set.seed(13)                      # Se establece la semilla 13
+sample <- sample_n(data, 22)      # Se obtiene una muestra de 22 instancias
+
+sample$mejor.A <- as.numeric(sub(",",".",sample$mejor.A))  # Convertimos los valores a numericos para poder usarlos en las pruebas
+sample$mejor.B <- as.numeric(sub(",",".",sample$mejor.B))
+```
+
+En este caso las hipótesís son:
+H0: Al comparar las mismas instancias de iguales características los rendimientos son similares
+H1: Al comparar las mismas instancias de iguales características los rendimientos son distintos
+
+Una prueba paramétrica que nos podría servir para resolver esto es la t de student
+
+Para esto vamos a evaluar normalidad a continuación:
+```{r prueba_normalidad_2}
+shapiro.test(sample$mejor.A)
+shapiro.test(sample$mejor.B)
+```
+
+Como se puede notar, si bien el p-value de los mejores de B es lo suficientemente alto para que la muestra sea considerada normal, el p-value de los mejores de A no lo es, por lo que no podemos afirmar que ambas muestras provienen de distribuciones cercanas a la normal, por lo que no usaremos esta prueba paramétrica; en su lugar, nos decantaremos por una prueba no parametríca de iguales características.
+
+En este caso, como las muestras son independientes entre sí y la escala de medición es el tiempo, el cual es ordinal, tenemos los requisitos necesarios para usar la prueba de suma de rangos de Wilcoxon.
+
+```{r wilcoxon}
+wilcox.test(x=sample$mejor.A, y=sample$mejor.B ,alternative="two.sided" ,conf.level=1-alpha,exact=FALSE)#lo de exact se debe a que la muestra es menor que 50 elementos
+
+```
+Como el p-value es menor que 0.05 podemos asegurar con un 95% de confianza que al comparar las mismas instancias de iguales características los rendimientos son distintos, es decir, que la memorista esta en lo cierto.
+
+
+## Pregunta 3
+
+La memorista sospecha que hay diferencias significativas en el tiempo de ejecución entre las versiones del algoritmo cuando las instancias de prueba tienen 50 o más nodos. ¿Los datos respaldan la intuición de la memorista? \
+\
+Para responder, filtren los datos para tener las instancias con 50 o más nodos y seleccionen las columnas con los tiempos de ejecución registrados (en formato ancho). Usando como semilla el valor 43, obtengan muestras aleatorias independientes de 15, 15 y 13 tiempos registrados por las versiones A, B y C, respectivamente. Realicen un análisis estadístico pertinente (enunciar hipótesis, revisar condiciones, seleccionar prueba) para responder la pregunta planteada, utilizando pruebas no paramétricas de ser necesario.
+
+
+```{r obtencion_datos_3}
+set.seed(43)
+
+muestra_3 <- datos[sample(which(datos$n.nodos >= 50), 43), ]
+
+muestra_3_A <- muestra_3[, 4][1:15]
+muestra_3_B <- muestra_3[, 5][16:30]
+muestra_3_C <- muestra_3[, 6][31:43]
+
+### A B y C son muestras independientes
+
+
+```
+En este caso las hipótesís son:
+H0: Todos los algoritmos tienen el mismo tiempo de ejecución.
+H1: Al menos uno de los algoritmos tiene un tiempo de ejecución que es distinto
+
+Una prueba paramétrica que nos podría servir para resolver esto es el análisis anova
+
+Para esto vamos a evaluar normalidad a continuación:
+
+```{r prueba_normalidad_3}
+shapiro.test(muestra_3_A)
+shapiro.test(muestra_3_B)
+shapiro.test(muestra_3_C)
+```
+
+Como se puede notar, si bien el p-value de los tiempos de B y C son lo suficientemente altos para que las muestras sea considerada normales, el p-value de los tiempos de A no lo es, por lo que no podemos asegurar que dichas muestras provienen de distribuciones cercanas a la normal, por lo que no usaremos esta prueba paramétrica; en su lugar, nos decantaremos por una prueba no parametríca de iguales características.
+
+En este caso, como las muestras son independientes entre sí y la escala de medición es el tiempo, el cual es ordinal, y la variable independiente tiene almenos 2 niveles, tenemos los requisitos necesarios para usar la prueba de Kruskall.
+
+```{r kruskall3}
+tiempos <- c(muestra_3_A, muestra_3_B, muestra_3_C)
+alg <- c(rep("A", length(muestra_3_A)), rep("B", length(muestra_3_B)), rep("C", length(muestra_3_C)))
+
+datos_fin <- data.frame(tiempos, alg)
+
+kruskal.test(tiempos ~ alg, data = datos_fin)
+```
+Como el p-value es menor a 0.05, que es nuestro nivel de significancia establecido, podemos rechazar la hipótesis nula en favor de la alternativa; luego, para saber cuales de los algoritmos son diferentes podemos ocupar el procedimiento post-hoc a través de Holm.
+
+```{r post-hoc_3}
+pairwise.wilcox.test(datos_fin$tiempos, datos_fin$alg, p.adjust.method = "holm", paired = FALSE, exact = FALSE)
+```
+
+Con respecto al resultado del analisis post-hoc se puede asegurar con un 95% de confianza que existe una diferencia significativa entre los tiempos de A y B; sin embargo, entre A y C, y los B y C esto no sucede. 
+
+## Pregunta 4
+
+La memorista también sospecha que, al comparar las mismas instancias con iguales características, las mejores soluciones encontradas por las diferentes versiones del algoritmo tienen rendimientos distintos. ¿Estará en lo cierto? \
+
+Para responder, filtren los datos para tener las instancias con 50 o más nodos y seleccionen las columnas con los mejores rendimientos registrados. Usando como semilla el valor 71, obtengan una muestra aleatoria de 22 instancias. Lleven los datos a formato largo y utilicen una prueba no paramétrica apropiada para analizar los datos obtenidos. Realicen un análisis estadístico pertinente (enunciar hipótesis, revisar condiciones, seleccionar prueba) para responder la pregunta planteada, utilizando pruebas no paramétricas de ser necesario.
+
+```{r obtencion_datos_4}
+alpha <- 0.05
+data <- read.csv2("EP07 Datos.csv", sep = ",", stringsAsFactors = TRUE)
+data <- subset(data, data$n.nodos >= 50)  # Se filtran las que tienen 50 o más nodos
+data <- select(data, mejor.A:mejor.C)    # Se seleccionan las columnas de mejor.A, mejor.B y mejor.C
+
+set.seed(71)                      # Se establece la semilla 71
+sample <- sample_n(data, 22)      # Se obtiene una muestra de 22 instancias
+
+sample$mejor.A <- as.numeric(sub(",",".",sample$mejor.A))  # Convertimos los valores a numericos para poder usarlos en las pruebas
+sample$mejor.B <- as.numeric(sub(",",".",sample$mejor.B))
+sample$mejor.C <- as.numeric(sub(",",".",sample$mejor.C))
+
+long_sample <- sample %>% pivot_longer(c("mejor.A", "mejor.B", "mejor.C"), names_to = "Algoritmo", values_to = "Tiempo")
+
+```
+En este caso las hipótesís son:
+H0: Al comparar las mismas instancias de iguales características las las mejores soluciones encontradas son similares
+H1: Al comparar las mismas instancias de iguales características las mejores soluciones encontradas tienen almenos una que es significativamente distinta
+
+Una prueba paramétrica que nos podría servir para resolver esto es el análisis anova
+
+Para esto vamos a evaluar normalidad a continuación:
+
+```{r prueba_normalidad_4}
+shapiro.test(sample$mejor.A)
+shapiro.test(sample$mejor.B)
+shapiro.test(sample$mejor.C)
+```
+Como se puede notar el p-value de los mejores de las 3 muestras es inferior a 0.05, por lo que ninguna de las muestras sigue una distribución normal por lo que no podemos usar ANOVA.
+
+En este caso, como las muestras son independientes entre sí y la escala de medición es el tiempo, el cual es ordinal, y la variable independiente tiene almenos 2 niveles, tenemos los requisitos necesarios para usar la prueba de Kruskall.
+
+
+```{r kruskall4}
+kruskal.test(Tiempo ~ Algoritmo, data = long_sample)
+```
+Como se puede notar en el resultado de la prueba, el p-value es lo suficientemente bajo como para rechazar la hipótesis nula en favor de la alternativa, es decir, podemos asegurar con un 95% de confianza que almenos uno de estos posee un rendimiento distinto, es decir, la memorista tiene razón. 
+
+Ya sabiendo lo anterior procederemos con un analisis post-hoc, donde se usara holm:
+
+```{r post-hoc_4}
+pairwise.wilcox.test(long_sample$Tiempo, long_sample$Algoritmo, p.adjust.method = "holm", paired = FALSE, exact = FALSE)
+```
+
+Con respecto al resultado del analisis post-hoc se puede asegurar con un 95% de confianza que, en las mismas instancias con iguales carácteristicas se puede apreciar una diferencia significativa entre los grupos A y B; sin embargo, entre los grupos A y C, y los B y C esto no sucede. 
+

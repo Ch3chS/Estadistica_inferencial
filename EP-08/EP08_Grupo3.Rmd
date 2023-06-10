@@ -1,0 +1,148 @@
+---
+title: "EP08_Grupo3"
+output: html_document
+date: "2023-05-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(simpleboot)
+library(boot)
+library(ggpubr)
+library(WRS2)
+```
+
+```{r Funciones_necesarias, echo = FALSE}
+obtiene_pemutacion <- function(i, muestra_1, muestra_2){
+  n_1 <- length(muestra_1)
+  combinada <- c(muestra_1, muestra_2)
+  n <- length(combinada)
+  permutacion <- sample(combinada, n , replace =FALSE)
+  nueva_1 <- permutacion[1:n_1]
+  nueva_2 <- permutacion[(n_1+1):n]
+  return(list(nueva_1,nueva_2))
+}
+calcular_diferencia <- function(muestras, FUN){
+  muestra_1 <- muestras[[1]]
+  muestra_2 <- muestras[[2]]
+  diferencia <- FUN(muestra_1) - FUN(muestra_2)
+  return(diferencia)
+}
+
+calcular_valor_p <- function(distribucion, valor_observado, repeticiones, alternative){
+  if(alternative == "two.sided"){
+    numerador <- sum(abs(distribucion) > abs(valor_observado)) + 1
+    denominador <- repeticiones + 1
+    valor_p <- numerador /denominador
+  }
+}
+
+contrastar_hipotesis_permutaciones <- function(muestra_1, muestra_2, repeticiones, FUN, alternative){
+  observado <- calcular_diferencia(list(muestra_1,muestra_2), FUN)
+  
+  n_1 <- length(muestra_1)
+  
+  permutaciones <- lapply(1:repeticiones, obtiene_pemutacion, muestra_1, muestra_2)
+  
+  distribucion <- sapply(permutaciones, calcular_diferencia, FUN)
+  
+  valor_p <- calcular_valor_p(distribucion, observado, repeticiones, alternative)
+  return(valor_p)
+}
+
+```
+
+
+```{r carga_datos}
+datos_casen <- read.csv("EP08 Datos CASEN 2017.csv", sep = ";", stringsAsFactors = TRUE, header = TRUE, fileEncoding = "ISO-8859-1")
+
+alpha <- 0.05
+```
+
+
+## Pregunta 1
+1. La diferencia de sueldos entre técnicos profesionales y profesionales universitarios, bastante variable sin embargo se cree que las personas solteras poseen mayor poder adquisitivo ya que se evitan un importante número de gastos si estos no poseen familia , hay un gran numero de estos profesionales los cuales su vivienda a sido cedida por algun pariente, por lo que se desea conocer si la cantidad de personas solteras con hogar propio pagado que haya sido cedido(v9) en la región Metropolitana ¿es similar entre profesional completo y técnico nivel superior completo (e6a)?
+
+```{r Pregunta 1}
+# Establecimiento de muestras
+set.seed(90)
+
+# Metropolitana con casa cedida
+filtrado <- subset(datos_casen, datos_casen$region == "Región Metropolitana de Santiago")
+filtrado <- subset(filtrado, filtrado$v9 == "Cedido por familiar u otro")
+soltero_met <- subset(filtrado, filtrado$ecivil == "Soltero(a)")
+
+# filtrar por solteros y tecnicos
+soltero_met_tecnico = soltero_met %>% subset(e6a == "Técnico Nivel Superior Completo (Carreras 1 a 3 años)")
+tecnico_con_hogar_cedido = length(soltero_met_tecnico$region)
+
+# filtrar por soltero y universitario con casa cedida
+soltero_met_profesional = soltero_met %>% subset(e6a == "Profesional Completo (Carreras 4 o más años)")
+profesional_con_hogar_cedido = length(soltero_met_profesional$region)
+
+# Funcion a emplear
+# Dada una muestra con valores que representan la posesión de casa cedida, donde 0 representa no tener casa cedida y 1 sí, se cuenta la cantidad de hogares tienen casa cedida
+contarConHogarCedido <- function(muestra){
+  sum(muestra == 1)
+}
+
+# Crear muestras para profesionales y tecnicos
+prof = rep(1, profesional_con_hogar_cedido)
+tecn = rep(1, tecnico_con_hogar_cedido)
+
+# Contrastar hipotesis utilizando un metodo de remuestreo
+contrastar_hipotesis_permutaciones(prof, tecn, 5999, contarConHogarCedido, alternative = "two.sided")
+```
+Como se puede notar el p-value es menor que alfa por lo que si existen diferencias significativas entre los tecnicos y los profesionales con el hogar cedido, es decir, no son similares.
+
+## Pregunta 2
+Pregunta de investigación propuesta: ¿Existe una diferencia significativa en el ingreso promedio entre las personas de diferentes grupos etarios en diferentes regiones de Chile? Comprobaremos con la region de los lagos, atacama y metropolitana.
+
+Para responder a esta pregunta de investigación, se puede utilizar el conjunto de datos del censo CADEM, que proporciona información sobre los ingresos de los hogares en diferentes regiones del país. A continuación, se detallan los pasos para realizar el análisis utilizando bootstrapping:
+
+
+```{r Pregunta 2}
+# Fijar una semilla para la reproducibilidad de los resultados
+set.seed(123)
+
+# Seleccionar una muestra aleatoria de hogares con un tamaño de muestra entre 400 y 600
+muestra <- datos_casen[sample(nrow(datos_casen), 500), ]
+
+# Dividir la muestra en grupos según la región y el grupo etario
+muestra$grupo_etario <- cut(muestra$edad, breaks = c(0, 18, 35, 50, Inf), labels = c("Niños y adolescentes", "Adultos jóvenes", "Adultos medios", "Adultos mayores"))
+
+# Seleccionar los datos para cada grupo etario y región
+lagos <- muestra %>% subset(region == "Región de Los Lagos")
+metropolitana <- muestra %>% subset(region == "Región Metropolitana de Santiago")
+atacama <- muestra %>% subset(region == "Región de Atacama")
+
+# Calcular las medias del ingreso para cada grupo etario y región
+ingreso_lagos <- tapply(lagos$ytotcorh, lagos$grupo_etario, mean)
+ingreso_metropolitana <- tapply(metropolitana$ytotcorh, metropolitana$grupo_etario, mean)
+ingreso_atacama <- tapply(atacama$ytotcorh, atacama$grupo_etario, mean)
+
+# Construir un data frame con las medias del ingreso para cada grupo etario y región
+ingreso_promedio <- c(ingreso_lagos, ingreso_metropolitana, ingreso_atacama)
+regiones <- c(rep("Los Lagos", length(ingreso_lagos)), rep("Metropolitana", length(ingreso_metropolitana)), rep("Atacama", length(ingreso_atacama)))
+grupo_etario <- rep(c("Niños y adolescentes", "Adultos jóvenes", "Adultos medios", "Adultos mayores"), 3)
+data <- data.frame(ingreso_promedio, regiones, grupo_etario)
+
+# Comprobar la normalidad de los datos
+test1 <- shapiro.test(data$ingreso_promedio)
+print(test1)
+
+# Si los datos no siguen una distribución normal, utilizar bootstrapping para comparar las medias del ingreso entre los diferentes grupos
+muestras <- 999
+gamma <- 0.2
+
+test2 <- t1waybt(ingreso_promedio ~ regiones + grupo_etario, data = data, tr = gamma, alpha = alfa)
+print(test2)
+
+# Aplicar un análisis post-hoc con bootstrapping para determinar qué regiones y grupos etarios presentan diferencias significativas en el ingreso promedio
+post_hoc <- mcppb20(ingreso_promedio ~ regiones + grupo_etario, data = data, tr = gamma, nboot = muestras)
+print(post_hoc)
+```
+
+Viendo el resultado de del analisis post-hoc podemos concluir con un 95% de confianza que efectivamente hay diferencias significativas entre los ingresos promedio de los diferentes grupos etarios de las regiones Metropolitana, de Atacama y de Los Lagos
+
+
