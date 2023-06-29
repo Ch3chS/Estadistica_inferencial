@@ -1,0 +1,336 @@
+---
+title: "EP-09"
+date: "2023-06-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggpubr)
+library(car)
+library(caret)
+library(leaps)
+library(tidyverse)
+```
+
+
+
+1. Definir la semilla a utilizar, que corresponde a los últimos cuatro dígitos del RUN (sin considerar el dígito verificador) del integrante de menor edad del equipo.
+
+2. Obtener una muestra de 50 mujeres (si la semilla es un número par) o 50 hombres (si la semilla es impar).
+
+Se toman los datos del archivo entregado y se procede a obtener una muestra de 50 mujeres dado que el valor de la semilla es par.
+```{r obtencion de datos}
+datos = read.csv2("EP09 Datos.csv")
+# Se define una semilla con los últiimos 4 digitos del RUN de
+# un miembro de equipo con 21 años
+set.seed(4346)
+mujeres = datos %>% filter(Gender == 0) %>% sample_n(50, replace = F)
+# Se hace nula la columna de genero ya que no es necesaria
+mujeres[["Gender"]] = NULL
+
+#Conjunto entrenamiento y prueba
+n <- nrow(mujeres)
+n_entrenamiento <- floor(0.9 * n) # Utilizaremos el 90% de las 50 muestras
+m <- sample.int(n = n, size = n_entrenamiento, replace = FALSE)
+datos_entrenamiento <- mujeres[m,]
+datos_prueba <- mujeres[-m,] 
+```
+
+3. Seleccionar de forma aleatoria ocho posibles variables predictoras.
+
+Dado la variable a predecir es el peso, se separará la variable de respuesta de los datos y luego se seleccionan las ocho variables predictoras
+```{r eleccion predictores y respueta}
+set.seed(4346)
+# Se separa la variable de respuesta
+respuesta = datos_entrenamiento[["Weight"]]
+datos_entrenamiento[["Weight"]] = NULL
+
+# Se seleccionan las variables predictoras
+predictores_nombres = colnames(mujeres)
+predictores = sample(predictores_nombres, 8, replace = F)
+print("Predictores seleccionados: ")
+predictores
+
+```
+
+Los predictores que se seleccionaron aleatoriamente son: Biacromial.diameter, Calf.Maximum.Girth, Chest.depth, Bicep.Girth, Bitrochanteric.diameter, Age, Elbows.diameter, Hip.Girth
+
+
+4. Seleccionar, de las otras variables, una que el equipo considere que podría ser útil para predecir la variable Peso, justificando bien esta selección.
+
+Por lo tanto, se evaluar la matriz de correlación de las variables predictoras restantes y se imprime por pantalla:
+```{r matriz correlacion}
+matriz = datos_entrenamiento %>% select(-any_of(predictores))
+correlacion = cor(matriz, y = respuesta)
+correlacion
+```
+
+Para seleccionar el mejor predictor para el modelo, se busca la variable con la mayor correlación con la variable de respuesta, teniendo entonces que Billiac.diameter es el valor con mayor correlación.
+```{r mejor correlacion}
+mejor = which(correlacion == max(abs(correlacion)))
+predictor = rownames(correlacion)[mejor]
+predictor
+```
+
+
+5. Usando el entorno R, construir un modelo de regresión lineal simple con el predictor seleccionado en el paso anterior.
+
+Como se pudo notar el mejor predictor es Knee.Girth, asi que ahora se realizara el modelo de regresión linea simple haciendo uso del mismo
+
+```{r RLS}
+datos_RLS = datos_entrenamiento %>% select(Knee.Girth)
+datos_RLS = cbind(respuesta, datos_RLS)
+ rls <- train (respuesta ~ Knee.Girth, data = datos_RLS, method = "lm",
+              trControl = trainControl(method = "cv", number = 10))
+ 
+ #Modelo de regresión lineal simple
+ summary(rls)
+```
+
+
+6. Usando herramientas para la exploración de modelos del entorno R, buscar entre dos y cinco predictores de entre las variables seleccionadas al azar en el punto 3, para agregar al modelo de regresión lineal simple obtenido en el paso 5.
+
+
+```{r RLM}
+datos_RLM <- datos_entrenamiento %>% select(predictores)
+
+# Seleccionar mejores predictores para modelo de regresión lineal múltiple
+# usando el método de todos los subconjuntos.
+rlm <- regsubsets(respuesta ~ ., data = datos_RLM, nbest = 1, nvmax = 5,
+                          method = "exhaustive")
+
+plot(rlm)
+
+datos_RLM <- cbind(respuesta, datos_RLM)
+
+# De acuerdo a la exploración de todos los subconjuntos, el mejor modelo con
+# entre 2 y 5 variables es aquel que usa como predictores el diámetro de los
+# tobillos y el grosor de las caderas.
+
+# Ajustar el modelo con los mejores predictores usando validación cruzada de 10
+# pliegues.
+
+rlm <- train(respuesta ~ Biacromial.diameter + Bicep.Girth + Hip.Girth, data = datos_RLM,
+              method = "lm",
+              trControl = trainControl(method = "cv", number = 10))
+
+# Regresión lineal multiple
+summary(rlm)
+```
+
+
+7. Evaluar los modelos y “arreglarlos” en caso de que tengan algún problema con las condiciones que deben cumplir.
+```{r evaluacion rls}
+# Evaluar modelo.
+# Obtener residuos y estadísticas de influencia de los casos.
+eval.rls <- data.frame(predicted.probabilities = fitted(rls[["finalModel"]]))
+eval.rls[["standardized.residuals"]] <- rstandard(rls[["finalModel"]])
+eval.rls[["studentized.residuals"]] <-rstudent(rls[["finalModel"]])
+eval.rls[["cooks.distance"]] <- cooks.distance(rls[["finalModel"]])
+eval.rls[["dfbeta"]] <- dfbeta(rls[["finalModel"]])
+eval.rls[["dffit"]] <- dffits(rls[["finalModel"]])
+eval.rls[["leverage"]] <- hatvalues(rls[["finalModel"]])
+eval.rls[["covariance.ratios"]] <- covratio(rls[["finalModel"]])
+
+cat("Influencia de los casos:\n")
+
+# 95% de los residuos estandarizados deberían estar entre −1.96 y +1.96, y 99%
+# entre -2.58 y +2.58.
+sospechosos1 <- which(abs(eval.rls[["standardized.residuals"]]) > 1.96)
+cat("- Residuos estandarizados fuera del 95% esperado: ")
+print(sospechosos1)
+
+# Observaciones con distancia de Cook mayor a uno.
+sospechosos2 <- which(eval.rls[["cooks.distance"]] > 1)
+cat("- Residuos con distancia de Cook mayor que 1: ")
+print(sospechosos2)
+
+# Observaciones con apalancamiento superior al doble del apalancamiento
+# promedio: (k + 1)/n.
+apalancamiento.promedio <- ncol(datos_RLS) / nrow(datos_RLS)
+sospechosos3 <- which(eval.rls[["leverage"]] > 2 * apalancamiento.promedio)
+
+cat("- Residuos con apalancamiento fuera de rango (promedio = ",
+    apalancamiento.promedio, "): ", sep = "")
+
+print(sospechosos3)
+
+# DFBeta debería ser < 1.
+sospechosos4 <- which(apply(eval.rls[["dfbeta"]] >= 1, 1, any))
+names(sospechosos4) <- NULL
+cat("- Residuos con DFBeta mayor que 1: ")
+print(sospechosos4)
+
+# Finalmente, los casos no deberían desviarse significativamente
+# de los límites recomendados para la razón de covarianza:
+# CVRi > 1 + [3(k + 1)/n]
+# CVRi < 1 – [3(k + 1)/n]
+CVRi.lower <- 1 - 3 * apalancamiento.promedio
+CVRi.upper <- 1 + 3 * apalancamiento.promedio
+
+sospechosos5 <- which(eval.rls[["covariance.ratios"]] < CVRi.lower |
+                        eval.rls[["covariance.ratios"]] > CVRi.upper)
+
+cat("- Residuos con razón de covarianza fuera de rango ([", CVRi.lower, ", ",
+    CVRi.upper, "]): ", sep = "")
+
+print(sospechosos5)
+
+sospechosos <- c(sospechosos1, sospechosos2, sospechosos3, sospechosos4,
+                 sospechosos5)
+
+sospechosos <- sort(unique(sospechosos))
+cat("\nResumen de observaciones sospechosas:\n")
+
+print(round(eval.rls[sospechosos,
+                     c("cooks.distance", "leverage", "covariance.ratios")],
+            3))
+
+# Si bien hay algunas observaciones que podrían considerarse atípicas, la
+# distancia de Cook para todas ellas se aleja bastante de 1, por lo que no
+# deberían ser causa de preocupación.
+
+# Ahora bien, podría ser preocupante que el modelo explica apenas 40,91% de la
+# variabilidad en el rendimiento, por lo que su bondad de ajuste es bajo con
+# respecto a las observaciones.
+```
+
+```{r condiciones rlm}
+rlmf <- rlm$finalModel
+residuos <- rlmf$residuals
+
+shapiro.test(residuos)
+# Realizando Shapiro-Wilk podemos ver la si sigue una distribucion cercana a la normal, en este caso al tener un p-value < 0.05, no podemos afirmar esto, por lo que se tiene el riesgo de que el modelo puede ser inexacto
+
+ncvTest(rlmf)
+# se concluye que al tener un p-value > 0.05, se falla en rechazar la h0, es decir que se cumple con el principo de homocedasticidad.
+
+durbinWatsonTest(rlmf)
+# Para evaluar si son independientes hacemos usos de la prueba de DurbinWaterson, el cual se basas en que si D-W Statistic es cercano a 2 no hay autocorrelación en los residuos, adicionalmente al tener un p-value > 0.05 significa que no hay suficiente información para asumir una autocorrelacion.
+
+vif(rlmf)
+# Cada variable se relaciona linealmente con la respuesta.
+# Analizando los resultados, y estos ser cercanos y mayores a 1 y menores que 10, podemos concluir que se cumple esta condición. 
+# De igual forma al no acercase a 2,5 no se conciderario critico.
+```
+
+Como se puede apreciar, si bien se cumple con las demas condiciones, la normalidad de los residuos no, por lo que se corre el riesgo de que el modelo sea inexacto.
+
+
+
+```{r evaluacion rlm}
+# Evaluar modelo.
+# Obtener residuos y estadísticas de influencia de los casos.
+eval.rlm <- data.frame(predicted.probabilities = fitted(rlm[["finalModel"]]))
+eval.rlm[["standardized.residuals"]] <- rstandard(rlm[["finalModel"]])
+eval.rlm[["studentized.residuals"]] <-rstudent(rlm[["finalModel"]])
+eval.rlm[["cooks.distance"]] <- cooks.distance(rlm[["finalModel"]])
+eval.rlm[["dfbeta"]] <- dfbeta(rlm[["finalModel"]])
+eval.rlm[["dffit"]] <- dffits(rlm[["finalModel"]])
+eval.rlm[["leverage"]] <- hatvalues(rlm[["finalModel"]])
+eval.rlm[["covariance.ratios"]] <- covratio(rlm[["finalModel"]])
+
+cat("Influencia de los casos:\n")
+
+# 95% de los residuos estandarizados deberían estar entre −1.96 y +1.96, y 99%
+# entre -2.58 y +2.58.
+sospechosos1 <- which(abs(eval.rlm[["standardized.residuals"]]) > 1.96)
+cat("- Residuos estandarizados fuera del 95% esperado: ")
+print(sospechosos1)
+
+# Observaciones con distancia de Cook mayor a uno.
+sospechosos2 <- which(eval.rlm[["cooks.distance"]] > 1)
+cat("- Residuos con distancia de Cook mayor que 1: ")
+print(sospechosos2)
+
+# Observaciones con apalancamiento superior al doble del apalancamiento
+# promedio: (k + 1)/n.
+apalancamiento.promedio <- ncol(datos_RLM) / nrow(datos_RLM)
+sospechosos3 <- which(eval.rlm[["leverage"]] > 2 * apalancamiento.promedio)
+
+cat("- Residuos con apalancamiento fuera de rango (promedio = ",
+    apalancamiento.promedio, "): ", sep = "")
+
+print(sospechosos3)
+
+# DFBeta debería ser < 1.
+sospechosos4 <- which(apply(eval.rlm[["dfbeta"]] >= 1, 1, any))
+names(sospechosos4) <- NULL
+cat("- Residuos con DFBeta mayor que 1: ")
+print(sospechosos4)
+
+# Finalmente, los casos no deberían desviarse significativamente
+# de los límites recomendados para la razón de covarianza:
+# CVRi > 1 + [3(k + 1)/n]
+# CVRi < 1 – [3(k + 1)/n]
+CVRi.lower <- 1 - 3 * apalancamiento.promedio
+CVRi.upper <- 1 + 3 * apalancamiento.promedio
+
+sospechosos5 <- which(eval.rlm[["covariance.ratios"]] < CVRi.lower |
+                        eval.rlm[["covariance.ratios"]] > CVRi.upper)
+
+cat("- Residuos con razón de covarianza fuera de rango ([", CVRi.lower, ", ",
+    CVRi.upper, "]): ", sep = "")
+
+print(sospechosos5)
+
+sospechosos <- c(sospechosos1, sospechosos2, sospechosos3, sospechosos4,
+                 sospechosos5)
+
+sospechosos <- sort(unique(sospechosos))
+cat("\nResumen de observaciones sospechosas:\n")
+
+print(round(eval.rlm[sospechosos,
+                     c("cooks.distance", "leverage", "covariance.ratios")],
+            3))
+
+# Si bien hay algunas observaciones que podrían considerarse atípicas, la
+# distancia de Cook para todas ellas se aleja bastante de 1, por lo que no
+# deberían ser causa de preocupación.
+
+# En este caso, el modelo explica 51,19% de la variabilidad de la variable
+# dependiente, por lo que se ajusta mejor a los datos que el modelo de RLS.
+
+cat("\nIndependencia de los residuos\n")
+print(durbinWatsonTest(rlm[["finalModel"]]))
+
+# Puesto que la prueba de Durbin-Watson entrega p = 0,682, podemos concluir que
+# los residuos son independientes.
+
+
+# De esta forma, podemos concluir que el modelo obtenido es confiable y
+# generalizable.
+
+```
+
+8. Evaluar el poder predictivo del modelo en datos no utilizados para construirlo (o utilizando validación cruzada).
+```{r evaluacion poder predictivo}
+# Entrenamiento
+# predicciones
+entrenamiento <- predict(rls, datos_entrenamiento)
+err_entrenamiento <- datos_RLS[["respuesta"]] - entrenamiento
+mse_entrenamiento <- mean(err_entrenamiento)**2  ## error cuadratico conjunto de entrenamiento
+print(mse_entrenamiento)
+
+# Prueba
+# predicciones
+prueba <- predict(rls, datos_prueba)
+err_prueba <- datos_RLS[["respuesta"]] - prueba
+mse_prueba <- mean(err_prueba**2) ## Error cuadratico conjunto de prueba
+print(mse_prueba)
+
+# Entrenamiento
+# predicciones
+entrenamiento2 <- predict(rlm, datos_entrenamiento)
+err_entrenamiento2 <- datos_RLM[["respuesta"]] - entrenamiento2
+mse_entrenamiento2 <- mean(err_entrenamiento2)**2  ## error cuadratico conjunto de entrenamiento
+print(mse_entrenamiento2)
+
+# Prueba
+# predicciones
+prueba2 <- predict(rlm, datos_prueba)
+err_prueba2 <- datos_RLM[["respuesta"]] - prueba2
+mse_prueba2 <- mean(err_prueba2**2) ## Error cuadratico conjunto de prueba
+print(mse_prueba2)
+```
+Tanto para el RLS como el RLM, se puede notar que para los valores de entrenamiento el error cuadrático es sumamente bajo, sin embargo, al usarlo con los datos de prueba el error cuadrático es alto, por lo que podemríamos concluir que existe un sobrentrenamiento del modelo hacia estos datos de prueba, por lo que no es muy poderoso a la hora de realizar predicciones en los datos no utilizados en el mismo.
