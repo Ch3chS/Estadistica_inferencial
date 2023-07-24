@@ -1,0 +1,343 @@
+---
+title: "EP-10"
+date: "2023-06-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(car)
+library(leaps)
+library(tidyverse)
+```
+
+# Introducción
+
+Se realizarán modelos de regresión logística para intentar predecir el estado nutricional de los hombres a partir de los datos dados junto con el enunciado de esta investigación, para esto se utilizarán predictores elegidos de forma justificada.
+
+
+## Datos
+
+A continuación se obtendran los datos necesarios para los modelos en cuestión:
+
+```{r datos}
+# Se leen los datos
+data <- read.csv2("EP09 Datos.csv", stringsAsFactors = TRUE) # Se lee el archivo
+
+# Primero se debe calcular el estado nutricional a partir del IMC que a su vez se saca de los datos de estatura y peso del dataframe
+IMC <- data$Weight / ((data$Height / 100) ** 2)  # Se pasa la altura de centimetros a metros y se calcula IMC
+EN <- ifelse(IMC > 25, 1, 0) # Se inicia un vector dicotomico  (1: Sobrepeso, 0: No sobrepeso)
+
+# Se agrega el estado nutricional al dataframe
+data <- data.frame(data, EN)
+
+# Solo usaremos a los hombres para este estudio por lo que reducimos los datos a usar
+hombres <- subset(data, Gender == 1)
+hombres$Gender <- NULL
+sobrepeso <- subset(hombres, EN == 1)
+noSobrepeso <- subset(hombres, EN == 0)
+
+```
+
+
+## Pasos a seguir:
+
+Ahora podemos construir un modelo de regresión logística para predecir la variable EN, de acuerdo con las siguientes instrucciones:
+
+1. Definir la semilla a utilizar, que corresponde a los últimos cuatro dígitos del RUN (sin considerar el dígito verificador) del integrante de mayor edad del equipo.
+
+2. Seleccionar una muestra de 90 mujeres (si la semilla es un número par) o 90 hombres (si la semilla es impar), asegurando que la mitad tenga estado nutricional “sobrepeso” y la otra mitad “no sobrepeso” en cada caso. Dividir esta muestra en dos conjuntos: los datos de 60 personas (30 con EN “sobrepeso”) para utilizar en la construcción de los modelos y 30 personas (15 con EN “sobrepeso”) para poder evaluarlos.
+
+3. Recordar las ocho posibles variables predictoras seleccionadas de forma aleatoria en el ejercicio anterior.
+
+4. Seleccionar, de las otras variables, una que el equipo considere que podría ser útil para predecir la clase EN, justificando bien esta selección.
+
+5. Usando el entorno R y paquetes estándares1, construir un modelo de regresión logística con el predictor seleccionado en el paso anterior y utilizando de la muestra obtenida.
+
+6. Usando herramientas estándares1 para la exploración de modelos del entorno R, buscar entre dos y cinco predictores de entre las variables seleccionadas al azar, recordadas en el punto 3, para agregar al modelo obtenido en el paso 5.
+
+7. Evaluar la confiabilidad de los modelos (i.e. que tengan un buen nivel de ajuste y son generalizables) y “arreglarlos” en caso de que tengan algún problema.
+
+8. Usando código estándar1, evaluar el poder predictivo de los modelos con los datos de las 40 personas que no se incluyeron en su construcción en términos de sensibilidad y especificidad.
+
+
+# Solución
+
+## Muestra
+
+Se utilizará la semilla 1667 para asegurar la posibilidad reproducir estudio, se sacará una muestra de 90 hombres, de los cuales 60 serán usados para el entrenamiento de los modelos, y 30 para poder evaluarlos; cabe destacar que para ambos la mitad de los estados nutricionales serán en sobrepeso y la mitad no.
+
+```{r muestras}
+set.seed(1667) # Se define la semilla según el rut del miembro mayor (ultimos 4 digitos antes del digito verificador)
+
+# Se toma una muestra de 90 con 45 en sobrepeso y 45 que no
+muestra <- merge(sample_n(sobrepeso, 45), sample_n(noSobrepeso, 45), all = TRUE)  
+
+sobrepeso <- subset(muestra, EN == 1)
+noSobrepeso <- subset(muestra, EN == 0)
+
+# Se obtiene una submuestra de 60 con 30 en sobrepeso y 30 que no para el entrenamiento del modelo
+entrenamiento <- merge(sample_n(sobrepeso, 30), sample_n(noSobrepeso, 30), all = TRUE)  
+
+# De la muestra original (de 90) se toman los datos restantes (que no son destinados al entrenamiento), para usarlos para la proxima evaluacion del modelo
+evaluacion <- anti_join(muestra, entrenamiento, by = names(muestra))
+```
+
+
+Recordando los predictores de la clase anterior, son los que se pueden ver en el siguiente vector:
+
+```{r predictoras}
+predictores <- c("Biacromial.diameter", "Calf.Maximum.Girth", "Chest.depth", "Bicep.Girth", "Bitrochanteric.diameter", "Age", "Elbows.diameter", "Hip.Girth")
+predictores
+```
+
+
+## Modelo de regresión logística simple
+
+### Selección de predictor para el modelo
+
+A continuación se listan los predictores no incluidos en el vector anterior con sus respectivas correlaciones con el estado nutricional:
+
+```{r matriz correlacion}
+respuesta <- entrenamiento[["EN"]]
+entrenamiento[["EN"]] <- NULL
+
+matriz <- entrenamiento %>% select(-any_of(predictores))
+correlacion <- cor(matriz, y = respuesta)
+correlacion
+mejor <- which(correlacion == max(abs(correlacion)))
+predictor <- rownames(correlacion)[mejor]
+predictor
+```
+### Creación del modelo
+
+Como se pudo notar el predictor elegido fue Navel.Girth, por lo que se procedera a realizar el modelo:
+
+```{r logit}
+modelo_1 <- glm(respuesta ~ Navel.Girth, family = binomial(link = "logit"), data = entrenamiento)
+```
+
+## Modelo de regresión logística múltiple
+
+A continuación se realizará el modelo de regresión logística múltiple a partir de los predictores del vector enseñado previamente, pero lo primero es ver cuales son los predictores que mejor adaptan la realidad para lo que se usará la función regsubsets:
+
+```{r logit2}
+data_glm2 <- entrenamiento %>% select(predictores)
+
+data_glm2 <- cbind(respuesta, data_glm2)
+
+# Seleccionar mejores predictores para modelo de regresión
+# usando el método de todos los subconjuntos.
+modelo_2.inicial <- regsubsets(respuesta ~ ., data = data_glm2, nbest = 1, nvmax = 5,
+                            method = "exhaustive")
+plot(modelo_2.inicial)
+
+modelo_2 <- glm(respuesta ~ Calf.Maximum.Girth + Chest.depth + Hip.Girth, family = binomial(link = "logit"), data = data_glm2)
+```
+Como se puede notar el modelo con menor bic es el que incluye Calf.Maximum.Girth, Chest.Depth y Hip.Girth, por lo que fueron usados para nuestro modelo.
+
+## Evaluación confiabilidad de los modelos
+
+## Evaluación confiabilidad del modelo de regresión logística simple
+
+```{r confiabilidad 1}
+# Evaluar modelo.
+# Obtener residuos y estadísticas de influencia de los casos.
+output <- data.frame(predicted.probabilities = fitted(modelo_1))
+output[["standardized.residuals"]] <- rstandard(modelo_1)
+output[["studentized.residuals"]] <- rstudent(modelo_1)
+output[["cooks.distance"]] <- cooks.distance(modelo_1)
+output[["dfbeta"]] <- dfbeta(modelo_1)
+output[["dffit"]] <- dffits(modelo_1)
+output[["leverage"]] <- hatvalues(modelo_1)
+
+sospechosos1 <- which(abs(output[["standardized.residuals"]]) > 1.96)
+sospechosos1 <- sort(sospechosos1)
+
+cat("Residuos estandarizados fuera del 95% esperado\n")
+print(rownames(entrenamiento[sospechosos1,]))
+
+sospechosos2 <- which(output[["cooks.distance"]] > 1)
+sospechosos2 <- sort(sospechosos2)
+
+cat("Residuales con una distancia de Cook alta\n")
+print(rownames(entrenamiento[sospechosos2,]))
+
+leverage.promedio <- ncol(entrenamiento) / nrow(data)
+sospechosos3 <- which(output[["leverage"]] > leverage.promedio)
+sospechosos3 <- sort(sospechosos3)
+
+cat("Residuales con levarage fuera de rango (>")
+cat(round(leverage.promedio, 3), ")", "\n", sep = "")
+print(rownames(entrenamiento[sospechosos3,]))
+
+sospechosos4 <- which(apply(output[["dfbeta"]] >= 1, 1, any))
+sospechosos4 <- sort(sospechosos4)
+names(sospechosos4) <- NULL
+
+cat("Residuales con DFBeta sobre 1\n")
+print(rownames(entrenamiento[sospechosos4,]))
+
+sospechosos <- c(sospechosos1, sospechosos2, sospechosos3, sospechosos4)
+sospechosos <- sort(unique(sospechosos))
+
+cat("Casos sospechosos\n")
+
+print(output[sospechosos,])
+```
+
+Si bien hay algunas observaciones que podrían considerarse atípicas, la distancia de Cook para todas ellas se aleja bastante de 1, por lo que no deberían ser causa de preocupación.
+
+## Evaluación confiabilidad del modelo de regresión logística múltiple
+
+```{r confiabilidad 2}
+# Evaluar modelo.
+# Obtener residuos y estadísticas de influencia de los casos.
+output <- data.frame(predicted.probabilities = fitted(modelo_1))
+output[["standardized.residuals"]] <- rstandard(modelo_2)
+output[["studentized.residuals"]] <- rstudent(modelo_2)
+output[["cooks.distance"]] <- cooks.distance(modelo_2)
+output[["dfbeta"]] <- dfbeta(modelo_2)
+output[["dffit"]] <- dffits(modelo_2)
+output[["leverage"]] <- hatvalues(modelo_1)
+
+sospechosos1 <- which(abs(output[["standardized.residuals"]]) > 1.96)
+sospechosos1 <- sort(sospechosos1)
+
+cat("Residuos estandarizados fuera del 95% esperado\n")
+print(rownames(entrenamiento[sospechosos1,]))
+
+sospechosos2 <- which(output[["cooks.distance"]] > 1)
+sospechosos2 <- sort(sospechosos2)
+
+cat("Residuales con una distancia de Cook alta\n")
+print(rownames(entrenamiento[sospechosos2,]))
+
+leverage.promedio <- ncol(entrenamiento) / nrow(data)
+sospechosos3 <- which(output[["leverage"]] > leverage.promedio)
+sospechosos3 <- sort(sospechosos3)
+
+cat("Residuales con levarage fuera de rango (>")
+cat(round(leverage.promedio, 3), ")", "\n", sep = "")
+print(rownames(entrenamiento[sospechosos3,]))
+
+sospechosos4 <- which(apply(output[["dfbeta"]] >= 1, 1, any))
+sospechosos4 <- sort(sospechosos4)
+names(sospechosos4) <- NULL
+
+cat("Residuales con DFBeta sobre 1\n")
+print(rownames(entrenamiento[sospechosos4,]))
+
+sospechosos <- c(sospechosos1, sospechosos2, sospechosos3, sospechosos4)
+sospechosos <- sort(unique(sospechosos))
+cat("Casos sospechosos\n")
+
+print(output[sospechosos,])
+```
+
+Si bien hay algunas observaciones que podrían considerarse atípicas, la distancia de Cook para todas ellas se aleja bastante de 1, por lo que no deberían ser causa de preocupación.
+
+## Evaluación calidad predictiva de los modelos
+
+### Evaluación calidad predictiva del modelo de regresión logística simple
+
+```{r evaluacion modelo uno}
+umbral <- 0.5
+
+probs_1 <- predict(modelo_1, evaluacion, type = "response")
+preds_1 <- sapply(probs_1, function(p) ifelse(p >= umbral, "1" , "0"))
+preds_1 <- factor(preds_1)
+print(preds_1)
+# Ordenar los valores de probabilidad y las etiquetas reales
+orden <- order(probs_1, decreasing = TRUE)
+probs_1_ordenados <- probs_1[orden]
+etiquetas_reales <- as.numeric(evaluacion$EN)[orden]
+preds_1_factor = as.factor(preds_1)
+etiquetas_factor = as.factor(etiquetas_reales)
+
+# Inicializar vectores para las tasas de verdaderos positivos y falsos positivos
+tasa_vp <- c(0)
+tasa_fp <- c(0)
+
+# Calcular los valores VP, VN, FP, FN
+VP <- sum(preds_1 == "1" & etiquetas_reales == 1)
+VN <- sum(preds_1 == "0" & etiquetas_reales == 0)
+FP <- sum(preds_1 == "1" & etiquetas_reales == 0)
+FN <- sum(preds_1 == "0" & etiquetas_reales == 1)
+# Crear la matriz de confusión
+confusion_matrix <- matrix(c(VN, FN, FP, VP), nrow = 2, byrow = TRUE, dimnames = list("Predicción" = c("0", "1"), "Etiqueta Real" = c("0", "1")))
+print(confusion_matrix)
+
+
+# Calcular las tasas de verdaderos positivos y falsos positivos
+for (i in 1:length(probs_1_ordenados)) {
+  predicciones <- ifelse(probs_1_ordenados >= probs_1_ordenados[i], "1", "0")
+  vp <- sum(predicciones == "1" & etiquetas_reales == 1)
+  fp <- sum(predicciones == "1" & etiquetas_reales == 0)
+  tasa_vp <- c(tasa_vp, vp/sum(etiquetas_reales == 1))
+  tasa_fp <- c(tasa_fp, fp/sum(etiquetas_reales == 0))
+}
+# Graficar la curva ROC
+plot(tasa_fp, tasa_vp, type = "l", main = "Curva ROC", xlab = "Especificidad", ylab = "Sensibilidad")
+lines(c(0,1), c(0,1), col = "blue")
+
+# Imprimir el área bajo la curva ROC (AUC)
+auc <- sum(diff(tasa_fp) * (tasa_vp[-length(tasa_vp)] + tasa_vp[-1])) / 2
+cat("Área bajo la curva ROC: ", round(auc, 2), "\n")
+
+# La curva se aleja bastante de la diagonal por lo que parece ser un buen modelo
+```
+
+Como se pudo notar anteriormente la curva esta muy lejos de la diagonal, por lo que es un buen modelo, es más, el área bajo la curva es de 0.91 que es bastante cercano a 1, por lo que es un modelo muy bueno para realizar las predicciones.
+
+### Evaluación calidad predictiva del modelo de regresión logística múltiple
+
+```{r evaluacion modelo dos}
+umbral <- 0.5
+
+probs_1 <- predict(modelo_2, evaluacion, type = "response")
+preds_1 <- sapply(probs_1, function(p) ifelse(p >= umbral, "1" , "0"))
+preds_1 <- factor(preds_1)
+
+# Ordenar los valores de probabilidad y las etiquetas reales
+orden <- order(probs_1, decreasing = TRUE)
+probs_1_ordenados <- probs_1[orden]
+etiquetas_reales <- as.numeric(evaluacion$EN)[orden]
+preds_1_factor = as.factor(preds_1)
+etiquetas_factor = as.factor(etiquetas_reales)
+# Inicializar vectores para las tasas de verdaderos positivos y falsos positivos
+tasa_vp <- c(0)
+tasa_fp <- c(0)
+
+# Calcular los valores VP, VN, FP, FN
+VP <- sum(preds_1 == "1" & etiquetas_reales == 1)
+VN <- sum(preds_1 == "0" & etiquetas_reales == 0)
+FP <- sum(preds_1 == "1" & etiquetas_reales == 0)
+FN <- sum(preds_1 == "0" & etiquetas_reales == 1)
+# Crear la matriz de confusión
+confusion_matrix <- matrix(c(VN, FN, FP, VP), nrow = 2, byrow = TRUE, dimnames = list("Predicción" = c("0", "1"), "Etiqueta Real" = c("0", "1")))
+print(confusion_matrix)
+
+# Calcular las tasas de verdaderos positivos y falsos positivos
+for (i in 1:length(probs_1_ordenados)) {
+  predicciones <- ifelse(probs_1_ordenados >= probs_1_ordenados[i], "1", "0")
+  vp <- sum(predicciones == "1" & etiquetas_reales == 1)
+  fp <- sum(predicciones == "1" & etiquetas_reales == 0)
+  tasa_vp <- c(tasa_vp, vp/sum(etiquetas_reales == 1))
+  tasa_fp <- c(tasa_fp, fp/sum(etiquetas_reales == 0))
+}
+
+# Graficar la curva ROC
+plot(tasa_fp, tasa_vp, type = "l", main = "Curva ROC", xlab = "Especificidad", ylab = "Sensibilidad")
+lines(c(0,1), c(0,1), col = "gray")
+
+# Imprimir el área bajo la curva ROC (AUC)
+auc <- sum(diff(tasa_fp) * (tasa_vp[-length(tasa_vp)] + tasa_vp[-1])) / 2
+cat("Área bajo la curva ROC: ", round(auc, 2), "\n")
+# La curva se aleja bastante de la diagonal por lo que parece ser un buen modelo
+```
+
+Como se pudo notar anteriormente la curva esta muy lejos de la diagonal, por lo que es un buen modelo, de hecho el area bajo la curva es de 0.88 lo que demuestra que es un buen modelo, sin embargo, el de regresión lógistica simple visto anteriormente tiene una mayor área.
+
+# Conclusión
+
+Teniendo en cuenta que el modelo de regresión lineal simple que usa el predictor Navel.Girth tiene menos casos sospechosos en su construcción, además de una mayor área bajo la curva ROC, podriamos decir que en general es un poco más confiable y tiene una mayor calidad predictiva, por lo que, si tuviesemos que recomendar uno para predecir el estado nutricional de un hombre, sería este.
